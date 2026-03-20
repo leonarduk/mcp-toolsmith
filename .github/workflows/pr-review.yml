@@ -125,6 +125,8 @@ jobs:
         working-directory: frontend
 
   ai-review:
+    # Temporarily disabled because the advisory AI review action is failing in this repo.
+    if: false
     name: AI code review
     runs-on: ubuntu-latest
     # Advisory only - never block a merge due to AI review failure
