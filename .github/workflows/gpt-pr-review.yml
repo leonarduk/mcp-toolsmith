@@ -6,8 +6,6 @@ on:
 
 jobs:
   gpt-review:
-    # Temporarily disabled because the advisory GPT review action is failing in this repo.
-    if: false
     name: GPT AI code review
     runs-on: ubuntu-latest
     continue-on-error: true
