@@ -133,10 +133,10 @@ Templates receive a precomputed context built from accepted operations, project 
 | `http_method` | `Literal["get", "post", "put", "patch", "delete", "options", "head"]` | Yes | Lowercase HTTP method from the spec. |
 | `operation_id` | `str` | Yes | Stable unique identifier after normalization; unique across the whole spec. |
 | `tool_name` | `str` | Yes | Generated MCP tool identifier, `snake_case`, ASCII letters/numbers/underscores only, max 64 chars. |
-| `summary` | `str | None` | No | Short human-readable summary, trimmed if present. |
-| `description` | `str | None` | No | Longer description in plain text or Markdown; may be collapsed for generation. |
+| `summary` | `str \| None` | No | Short human-readable summary, trimmed if present. |
+| `description` | `str \| None` | No | Longer description in plain text or Markdown; may be collapsed for generation. |
 | `tags` | `list[str]` | Yes | Ordered tag list from the spec; empty list allowed. |
-| `primary_tag` | `str | None` | No | First tag or chosen fallback grouping key. |
+| `primary_tag` | `str \| None` | No | First tag or chosen fallback grouping key. |
 | `deprecated` | `bool` | Yes | Mirrors OpenAPI `deprecated`. |
 | `unsafe` | `bool` | Yes | True when the HTTP method is considered state changing or otherwise non-safe for default generation. |
 | `servers` | `list[str]` | Yes | Resolved absolute server base URLs applicable to the operation. |
@@ -144,14 +144,14 @@ Templates receive a precomputed context built from accepted operations, project 
 | `query_params` | `list[ParameterModel]` | Yes | Parameters with location `query`. |
 | `header_params` | `list[ParameterModel]` | Yes | Parameters with location `header`, excluding auth headers handled separately when possible. |
 | `cookie_params` | `list[ParameterModel]` | Yes | Parameters with location `cookie`. |
-| `request_body` | `RequestBodyModel | None` | No | Normalized body payload contract if the operation accepts a request body. |
+| `request_body` | `RequestBodyModel \| None` | No | Normalized body payload contract if the operation accepts a request body. |
 | `responses` | `list[ResponseModel]` | Yes | At least one normalized response entry if the spec defines any responses; may be empty only when the source operation is malformed and a finding is emitted. |
 | `security_requirements` | `list[SecurityRequirementModel]` | Yes | Ordered list of OpenAPI security requirement alternatives. |
 | `auth_schemes` | `list[str]` | Yes | Distinct referenced security scheme names after normalization. |
 | `quality` | `QualityScoreModel` | Yes | Weighted scoring breakdown attached after lint/scoring. |
 | `findings` | `list[FindingModel]` | Yes | Structured warnings/errors relevant to this operation. |
 | `extensions` | `dict[str, Any]` | Yes | Supported vendor extensions preserved for future generator features; keys must begin with `x-`. |
-|
+
 
 ### `ParameterModel`
 
@@ -160,14 +160,14 @@ Templates receive a precomputed context built from accepted operations, project 
 | `name` | `str` | Yes | Original parameter name. |
 | `location` | `Literal["path", "query", "header", "cookie"]` | Yes | OpenAPI parameter location. |
 | `required` | `bool` | Yes | Path parameters must always normalize to `true`. |
-| `description` | `str | None` | No | Human-facing explanation. |
-| `schema_type` | `str | None` | No | Top-level normalized schema type, such as `string`, `integer`, `object`, or `array`. |
-| `format` | `str | None` | No | OpenAPI schema format if present. |
-| `style` | `str | None` | No | Serialization style. |
-| `explode` | `bool | None` | No | OpenAPI explode flag if specified. |
-| `default` | `Any | None` | No | Default value if declared. |
+| `description` | `str \| None` | No | Human-facing explanation. |
+| `schema_type` | `str \| None` | No | Top-level normalized schema type, such as `string`, `integer`, `object`, or `array`. |
+| `format` | `str \| None` | No | OpenAPI schema format if present. |
+| `style` | `str \| None` | No | Serialization style. |
+| `explode` | `bool \| None` | No | OpenAPI explode flag if specified. |
+| `default` | `Any \| None` | No | Default value if declared. |
 | `enum_values` | `list[Any]` | Yes | Enumerated allowed values, if any. |
-| `json_schema` | `dict[str, Any] | None` | No | JSON-Schema-like shape used for validation/generation after dereferencing and normalization. |
+| `json_schema` | `dict[str, Any] \| None` | No | JSON-Schema-like shape used for validation/generation after dereferencing and normalization. |
 
 ### `RequestBodyModel`
 
@@ -176,8 +176,8 @@ Templates receive a precomputed context built from accepted operations, project 
 | `required` | `bool` | Yes | Whether the body is required. |
 | `content_type` | `str` | Yes | Selected primary media type for generation. |
 | `alternate_content_types` | `list[str]` | Yes | Additional supported media types retained for reporting. |
-| `description` | `str | None` | No | Request body description. |
-| `json_schema` | `dict[str, Any] | None` | No | Normalized schema for the chosen media type. |
+| `description` | `str \| None` | No | Request body description. |
+| `json_schema` | `dict[str, Any] \| None` | No | Normalized schema for the chosen media type. |
 
 ### `ResponseModel`
 
@@ -186,7 +186,7 @@ Templates receive a precomputed context built from accepted operations, project 
 | `status_code` | `str` | Yes | Literal response key such as `200`, `201`, or `default`. |
 | `description` | `str` | Yes | Response description; fallback text allowed only when the source omits it. |
 | `content_types` | `list[str]` | Yes | Sorted list of available media types. |
-| `json_schema` | `dict[str, Any] | None` | No | Preferred schema used for documentation/reporting. |
+| `json_schema` | `dict[str, Any] \| None` | No | Preferred schema used for documentation/reporting. |
 
 ### `SecurityRequirementModel`
 
@@ -211,7 +211,7 @@ Templates receive a precomputed context built from accepted operations, project 
 | `code` | `str` | Yes | Stable machine-readable rule identifier. |
 | `severity` | `Literal["info", "warning", "error"]` | Yes | Finding severity. |
 | `message` | `str` | Yes | Human-readable explanation. |
-| `field` | `str | None` | No | Optional dotted path into the normalized model. |
+| `field` | `str \| None` | No | Optional dotted path into the normalized model. |
 
 ### Normalization rules
 
