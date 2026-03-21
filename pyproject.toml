@@ -16,8 +16,21 @@ dependencies = [
   "typer>=0.12,<1.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9.0",
+  "pytest-cov>=5.0,<6.0",
+]
+
 [project.scripts]
 mcp-toolsmith = "mcp_toolsmith.cli:main"
 
 [tool.setuptools]
 packages = ["mcp_toolsmith"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=mcp_toolsmith --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+disable_warnings = ["no-data-collected"]
