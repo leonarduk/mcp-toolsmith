@@ -78,7 +78,7 @@ def test_load_spec_reads_https_url(monkeypatch: pytest.MonkeyPatch) -> None:
     assert requested["follow_redirects"] is True
     assert requested["timeout"].connect == CONNECT_TIMEOUT_SECONDS
     assert requested["timeout"].read == READ_TIMEOUT_SECONDS
-    assert requested["timeout"].pool == READ_TIMEOUT_SECONDS
+    assert requested["timeout"].pool is None
     assert isinstance(requested["transport"], loader._ValidatedHTTPTransport)
 
 

@@ -135,7 +135,11 @@ class _ValidatedHTTPTransport(httpx.BaseTransport):
 
 
 def load_spec(source: str | Path) -> dict[str, Any]:
-    """Load an OpenAPI document from a local file path or HTTPS URL."""
+    """Load an OpenAPI document from a local file path or HTTPS URL.
+
+    This helper is intentionally synchronous. Async callers should run it in a
+    worker thread if they need to avoid blocking an event loop.
+    """
     if isinstance(source, Path):
         return _load_local_spec(source)
 
@@ -164,7 +168,7 @@ def _load_remote_spec(url: str) -> dict[str, Any]:
     if not parsed.hostname:
         raise SpecLoadError("Remote spec URL must include a hostname.")
 
-    timeout = httpx.Timeout(READ_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS, pool=READ_TIMEOUT_SECONDS)
+    timeout = httpx.Timeout(READ_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS, pool=None)
     transport = _ValidatedHTTPTransport()
 
     try:
