@@ -34,7 +34,7 @@ def cli(
 
 @app.command()
 def generate() -> None:
-    """Generate an MCP server from an OpenAPI specification."""
+    """Generate an MCP server from an OpenAPI specification (stub for upcoming implementation)."""
     typer.echo("not yet implemented")
     raise typer.Exit(code=0)
 
