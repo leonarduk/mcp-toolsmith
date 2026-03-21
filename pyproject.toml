@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-toolsmith"
+version = "0.1.0"
+description = "CLI for generating MCP server templates from OpenAPI specifications"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "leonarduk" }
+]
+dependencies = [
+  "typer>=0.12,<1.0",
+]
+
+[project.scripts]
+mcp-toolsmith = "mcp_toolsmith.cli:main"
+
+[tool.setuptools]
+packages = ["mcp_toolsmith"]
