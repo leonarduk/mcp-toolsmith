@@ -7,6 +7,7 @@ import socket
 from collections.abc import Mapping
 from ipaddress import ip_address
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 from urllib.parse import urlparse
 
@@ -75,6 +76,64 @@ class _ValidatedPublicIPBackend(httpcore.NetworkBackend):
         self._backend.sleep(seconds)
 
 
+class _ResponseStream(httpx.SyncByteStream):
+    """Wrap an httpcore stream for use in httpx responses."""
+
+    def __init__(self, httpcore_stream: Any) -> None:
+        self._httpcore_stream = httpcore_stream
+
+    def __iter__(self) -> Any:
+        yield from self._httpcore_stream
+
+    def close(self) -> None:
+        close = getattr(self._httpcore_stream, "close", None)
+        if close is not None:
+            close()
+
+
+class _ValidatedHTTPTransport(httpx.BaseTransport):
+    """HTTP transport backed by a validated-public-IP httpcore connection pool."""
+
+    def __init__(self) -> None:
+        self._pool = httpcore.ConnectionPool(network_backend=_ValidatedPublicIPBackend())
+
+    def __enter__(self) -> _ValidatedHTTPTransport:
+        self._pool.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_value: BaseException | None = None,
+        traceback: TracebackType | None = None,
+    ) -> None:
+        self._pool.__exit__(exc_type, exc_value, traceback)
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        req = httpcore.Request(
+            method=request.method,
+            url=httpcore.URL(
+                scheme=request.url.raw_scheme,
+                host=request.url.raw_host,
+                port=request.url.port,
+                target=request.url.raw_path,
+            ),
+            headers=request.headers.raw,
+            content=request.stream,
+            extensions=request.extensions,
+        )
+        response = self._pool.handle_request(req)
+        return httpx.Response(
+            status_code=response.status,
+            headers=response.headers,
+            stream=_ResponseStream(response.stream),
+            extensions=response.extensions,
+        )
+
+    def close(self) -> None:
+        self._pool.close()
+
+
 def load_spec(source: str | Path) -> dict[str, Any]:
     """Load an OpenAPI document from a local file path or HTTPS URL."""
     if isinstance(source, Path):
@@ -105,22 +164,21 @@ def _load_remote_spec(url: str) -> dict[str, Any]:
     if not parsed.hostname:
         raise SpecLoadError("Remote spec URL must include a hostname.")
 
-    timeout = httpx.Timeout(
-        connect=CONNECT_TIMEOUT_SECONDS,
-        read=READ_TIMEOUT_SECONDS,
-        write=READ_TIMEOUT_SECONDS,
-        pool=READ_TIMEOUT_SECONDS,
-    )
-    transport = httpx.HTTPTransport(retries=0)
-    transport._pool._network_backend = _ValidatedPublicIPBackend()
+    timeout = httpx.Timeout(READ_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS, pool=READ_TIMEOUT_SECONDS)
+    transport = _ValidatedHTTPTransport()
 
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True, transport=transport) as client:
             response = client.get(url)
             response.raise_for_status()
-    except httpx.TimeoutException as exc:
+    except (httpx.TimeoutException, httpcore.TimeoutException) as exc:
         raise SpecLoadError(f"Timed out while fetching remote spec '{url}'.") from exc
-    except httpx.HTTPError as exc:
+    except (
+        httpx.HTTPError,
+        httpcore.NetworkError,
+        httpcore.ProtocolError,
+        httpcore.ProxyError,
+    ) as exc:
         raise SpecLoadError(f"Failed to fetch remote spec '{url}': {exc}") from exc
 
     return _parse_spec(response.text, source=url)

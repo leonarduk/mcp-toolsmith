@@ -79,11 +79,17 @@ def test_load_spec_reads_https_url(monkeypatch: pytest.MonkeyPatch) -> None:
     assert requested["timeout"].connect == CONNECT_TIMEOUT_SECONDS
     assert requested["timeout"].read == READ_TIMEOUT_SECONDS
     assert requested["timeout"].pool == READ_TIMEOUT_SECONDS
+    assert isinstance(requested["transport"], loader._ValidatedHTTPTransport)
 
 
 def test_load_spec_rejects_non_https_url() -> None:
     with pytest.raises(UnsupportedSchemeError, match="https://"):
         load_spec("http://example.com/openapi.yaml")
+
+
+def test_load_spec_rejects_file_url() -> None:
+    with pytest.raises(UnsupportedSchemeError, match="file://"):
+        load_spec("file:///tmp/openapi.yaml")
 
 
 def test_load_spec_blocks_private_remote_targets(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -175,3 +181,27 @@ def test_validated_public_ip_backend_resolves_before_connect(monkeypatch: pytest
         "connect_host": "93.184.216.34",
         "connect_port": 443,
     }
+
+
+def test_validated_http_transport_passes_backend_via_connection_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    recorded: dict[str, Any] = {}
+
+    class _FakePool:
+        def __init__(self, *, network_backend: Any) -> None:
+            recorded["network_backend"] = network_backend
+
+        def __enter__(self) -> _FakePool:
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(loader.httpcore, "ConnectionPool", _FakePool)
+
+    transport = loader._ValidatedHTTPTransport()
+
+    assert isinstance(recorded["network_backend"], loader._ValidatedPublicIPBackend)
+    transport.close()
