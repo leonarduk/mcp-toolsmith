@@ -225,19 +225,12 @@ def _clean_str(value: Any) -> str | None:
 
 
 def _operation_id(source_path: str, method: str, raw_operation_id: Any, *, generated_ids: set[str]) -> str:
-    """Return an explicit operationId or a deterministic collision-free fallback."""
+    """Return an explicit operationId or a deterministic fallback identifier."""
 
     if isinstance(raw_operation_id, str) and raw_operation_id.strip():
         return raw_operation_id.strip()
     normalized_path = re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", source_path.strip("/").lower())).strip("_") or "root"
-    candidate = f"{method}_{normalized_path}"
-    if candidate not in generated_ids:
-        return candidate
-
-    suffix = 2
-    while f"{candidate}_{suffix}" in generated_ids:
-        suffix += 1
-    return f"{candidate}_{suffix}"
+    return f"{method}_{normalized_path}"
 
 
 def _select_media_type(media_types: list[tuple[str, Mapping[str, Any]]]) -> Mapping[str, Any] | None:

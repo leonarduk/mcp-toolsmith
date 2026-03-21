@@ -65,8 +65,6 @@ class _RefResolver:
 
         return self._resolve_node(deepcopy(target), stack=[*stack, ref])
 
-
-
 def dereference_local_refs(document: Mapping[str, Any]) -> dict[str, Any]:
     """Return a deep-copied document with local refs expanded inline.
 
@@ -79,7 +77,11 @@ def dereference_local_refs(document: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _unescape_json_pointer_token(token: str) -> str:
-    """Decode a single JSON Pointer token without double-unescaping."""
+    """Decode a single JSON Pointer token.
+
+    Malformed escape sequences now raise structured validation errors instead of
+    being silently tolerated.
+    """
 
     characters: list[str] = []
     index = 0
@@ -89,9 +91,16 @@ def _unescape_json_pointer_token(token: str) -> str:
             index += 1
             continue
         if index + 1 >= len(token):
-            characters.append("~")
-            index += 1
-            continue
+            raise SpecValidationError(
+                "Invalid OpenAPI specification.",
+                errors=[
+                    {
+                        "field": "$ref",
+                        "message": f"Invalid JSON Pointer escape sequence in token: {token}",
+                        "value": token,
+                    }
+                ],
+            )
 
         escaped = token[index + 1]
         if escaped == "0":
@@ -103,6 +112,14 @@ def _unescape_json_pointer_token(token: str) -> str:
             index += 2
             continue
 
-        characters.append("~")
-        index += 1
+        raise SpecValidationError(
+            "Invalid OpenAPI specification.",
+            errors=[
+                {
+                    "field": "$ref",
+                    "message": f"Invalid JSON Pointer escape sequence in token: {token}",
+                    "value": token,
+                }
+            ],
+        )
     return "".join(characters)

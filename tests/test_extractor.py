@@ -131,6 +131,44 @@ def test_dereference_unescapes_json_pointer_tokens_in_spec_order() -> None:
     assert response_content["201"]["content"]["application/json"]["schema"]["description"] == "tilde one"
 
 
+def test_dereference_rejects_invalid_json_pointer_escape_sequences() -> None:
+    invalid_refs = ["#/components/schemas/bad~2token", "#/components/schemas/bad~xtoken", "#/components/schemas/bad~"]
+
+    for ref in invalid_refs:
+        spec = _minimal_spec()
+        spec["components"] = {
+            "schemas": {
+                "bad~2token": {"type": "string"},
+                "bad~xtoken": {"type": "string"},
+                "bad~": {"type": "string"},
+            }
+        }
+        spec["paths"] = {
+            "/pets": {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "content": {"application/json": {"schema": {"$ref": ref}}},
+                        }
+                    }
+                }
+            }
+        }
+
+        with pytest.raises(SpecValidationError) as exc_info:
+            dereference_local_refs(spec)
+
+        token = ref.rsplit("/", 1)[-1]
+        assert exc_info.value.errors == [
+            {
+                "field": "$ref",
+                "message": f"Invalid JSON Pointer escape sequence in token: {token}",
+                "value": token,
+            }
+        ]
+
+
 def test_dereference_supports_deeply_nested_and_unusual_pointer_paths() -> None:
     spec = _minimal_spec()
     spec["components"] = {
@@ -344,27 +382,22 @@ def test_extract_operations_rejects_invalid_request_body_media_type_structures()
     ]
 
 
-def test_extract_operations_generates_collision_free_ids_for_normalized_paths() -> None:
+def test_extract_operations_rejects_duplicate_generated_operation_ids() -> None:
     spec = _minimal_spec()
     spec["paths"] = {
         "/pets/list": {"get": {"responses": {"200": {"description": "ok"}}}},
         "/pets//list": {"get": {"responses": {"200": {"description": "ok"}}}},
-        "/pets/{list}": {
-            "get": {
-                "parameters": [{"name": "list", "in": "path", "required": True, "schema": {"type": "string"}}],
-                "responses": {"200": {"description": "ok"}},
-            }
-        },
-        "/pets/list!": {"get": {"responses": {"200": {"description": "ok"}}}},
     }
 
-    operations = extract_operations(spec)
+    with pytest.raises(SpecValidationError) as exc_info:
+        extract_operations(spec)
 
-    assert [operation.operation_id for operation in operations] == [
-        "get_pets_list",
-        "get_pets_list_2",
-        "get_pets_list_3",
-        "get_pets_list_4",
+    assert exc_info.value.errors == [
+        {
+            "field": "operationId",
+            "message": "Duplicate operationId detected: get_pets_list",
+            "value": {"path": "/pets//list", "method": "get", "operationId": "get_pets_list"},
+        }
     ]
 
 
