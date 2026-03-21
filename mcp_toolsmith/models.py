@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -71,4 +72,11 @@ class OperationModel(BaseModel):
     responses: dict[str, SchemaModel | None] = Field(default_factory=dict)
 
 
-SchemaModel.model_rebuild()
+def rebuild_models() -> None:
+    """Rebuild deferred model references for runtime use."""
+
+    SchemaModel.model_rebuild()
+
+
+if not TYPE_CHECKING:
+    rebuild_models()

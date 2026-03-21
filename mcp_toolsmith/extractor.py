@@ -2,22 +2,37 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any, cast
 
 from mcp_toolsmith.deref import dereference_local_refs
 from mcp_toolsmith.models import HttpMethod, OperationModel, ParameterModel, SchemaModel
+from mcp_toolsmith.validator import SpecValidationError
 from mcp_toolsmith.validator import validate_spec
 
 _HTTP_METHODS: tuple[HttpMethod, ...] = ("get", "post", "put", "patch", "delete", "options", "head")
+_PATH_PARAMETER_PATTERN = re.compile(r"{([^}/]+)}")
 
 
 def extract_operations(document: Mapping[str, Any]) -> list[OperationModel]:
-    """Validate, dereference, and normalize OpenAPI operations."""
+    """Validate, dereference, and normalize OpenAPI operations.
+
+    Args:
+        document: Parsed OpenAPI document data.
+
+    Returns:
+        A list of normalized operation models derived from the spec.
+
+    Raises:
+        SpecValidationError: If the document is invalid, contains unresolved refs,
+            or declares a path template variable without a matching parameter.
+    """
     validate_spec(document)
     dereferenced = dereference_local_refs(document)
     paths = cast(Mapping[str, Any], dereferenced["paths"])
     operations: list[OperationModel] = []
+    generated_operation_ids: set[str] = set()
 
     for source_path, path_item_value in paths.items():
         if not isinstance(path_item_value, Mapping):
@@ -30,8 +45,21 @@ def extract_operations(document: Mapping[str, Any]) -> list[OperationModel]:
                 continue
             operation = cast(Mapping[str, Any], operation_value)
             merged_parameters = _merge_parameters(path_parameters, _normalize_parameters(operation.get("parameters", [])))
+            _validate_path_parameters(source_path, merged_parameters)
             grouped = _group_parameters(merged_parameters)
-            operation_id = _operation_id(source_path, method, operation.get("operationId"))
+            operation_id = _operation_id(source_path, method, operation.get("operationId"), generated_ids=generated_operation_ids)
+            if operation_id in generated_operation_ids:
+                raise SpecValidationError(
+                    "Invalid OpenAPI specification.",
+                    errors=[
+                        {
+                            "field": "operationId",
+                            "message": f"Duplicate operationId detected: {operation_id}",
+                            "value": {"path": source_path, "method": method, "operationId": operation_id},
+                        }
+                    ],
+                )
+            generated_operation_ids.add(operation_id)
             operations.append(
                 OperationModel(
                     source_path=source_path,
@@ -53,6 +81,8 @@ def extract_operations(document: Mapping[str, Any]) -> list[OperationModel]:
 
 
 def _normalize_parameters(raw_parameters: Any) -> list[ParameterModel]:
+    """Convert OpenAPI parameter objects into normalized parameter models."""
+
     if not isinstance(raw_parameters, list):
         return []
     parameters: list[ParameterModel] = []
@@ -79,6 +109,8 @@ def _normalize_parameters(raw_parameters: Any) -> list[ParameterModel]:
 
 
 def _merge_parameters(path_parameters: list[ParameterModel], operation_parameters: list[ParameterModel]) -> list[ParameterModel]:
+    """Merge path- and operation-level parameters, preferring operation values."""
+
     merged: dict[tuple[str, str], ParameterModel] = {(param.location, param.name): param for param in path_parameters}
     for param in operation_parameters:
         merged[(param.location, param.name)] = param
@@ -93,6 +125,8 @@ def _group_parameters(parameters: list[ParameterModel]) -> dict[str, list[Parame
 
 
 def _schema_from_raw(raw_schema: Any) -> SchemaModel | None:
+    """Build a normalized schema tree from raw OpenAPI schema data."""
+
     if not isinstance(raw_schema, Mapping):
         return None
     properties: dict[str, SchemaModel] = {}
@@ -121,27 +155,40 @@ def _schema_from_raw(raw_schema: Any) -> SchemaModel | None:
 
 
 def _extract_request_body(raw_request_body: Any) -> SchemaModel | None:
+    """Extract a preferred request-body schema from the content map.
+
+    Args:
+        raw_request_body: The raw OpenAPI requestBody object.
+
+    Returns:
+        The preferred request body schema, or ``None`` if no valid media type
+        schema is defined.
+
+    Raises:
+        SpecValidationError: If the request body content contains invalid
+            media-type structures.
+    """
+
     if not isinstance(raw_request_body, Mapping):
         return None
     content = raw_request_body.get("content")
     if not isinstance(content, Mapping):
         return None
-    preferred = None
-    for media_type in ("application/json", "application/*+json"):
-        if media_type in content and isinstance(content[media_type], Mapping):
-            preferred = content[media_type]
-            break
-    if preferred is None:
-        for media in content.values():
-            if isinstance(media, Mapping):
-                preferred = media
-                break
+    valid_media_types = [(str(media_type), media_value) for media_type, media_value in content.items() if isinstance(media_value, Mapping)]
+    if not valid_media_types:
+        raise SpecValidationError(
+            "Invalid OpenAPI specification.",
+            errors=[{"field": "requestBody.content", "message": "requestBody.content must define at least one media type object.", "value": dict(content)}],
+        )
+    preferred = _select_media_type(valid_media_types)
     if preferred is None:
         return None
     return _schema_from_raw(preferred.get("schema"))
 
 
 def _extract_responses(raw_responses: Any) -> dict[str, SchemaModel | None]:
+    """Extract the first schema available for each response status code."""
+
     if not isinstance(raw_responses, Mapping):
         return {}
     responses: dict[str, SchemaModel | None] = {}
@@ -161,20 +208,76 @@ def _extract_responses(raw_responses: Any) -> dict[str, SchemaModel | None]:
 
 
 def _normalize_tags(raw_tags: Any) -> list[str]:
+    """Normalize tag strings by removing empty or whitespace-only entries."""
+
     if not isinstance(raw_tags, list):
         return []
     return [tag.strip() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
 
 
 def _clean_str(value: Any) -> str | None:
+    """Return a stripped string value, or ``None`` for missing/blank inputs."""
+
     if not isinstance(value, str):
         return None
     stripped = value.strip()
     return stripped or None
 
 
-def _operation_id(source_path: str, method: str, raw_operation_id: Any) -> str:
+def _operation_id(source_path: str, method: str, raw_operation_id: Any, *, generated_ids: set[str]) -> str:
+    """Return an explicit operationId or a deterministic collision-free fallback."""
+
     if isinstance(raw_operation_id, str) and raw_operation_id.strip():
         return raw_operation_id.strip()
-    normalized_path = source_path.strip("/").replace("/", "_").replace("{", "").replace("}", "") or "root"
-    return f"{method}_{normalized_path}"
+    normalized_path = re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", source_path.strip("/").lower())).strip("_") or "root"
+    candidate = f"{method}_{normalized_path}"
+    if candidate not in generated_ids:
+        return candidate
+
+    suffix = 2
+    while f"{candidate}_{suffix}" in generated_ids:
+        suffix += 1
+    return f"{candidate}_{suffix}"
+
+
+def _select_media_type(media_types: list[tuple[str, Mapping[str, Any]]]) -> Mapping[str, Any] | None:
+    """Choose a deterministic request-body media type.
+
+    Preference order:
+    1. ``application/json``
+    2. ``application/*`` wildcard media types
+    3. The first defined valid media type
+    """
+
+    exact_json = next((media for media_type, media in media_types if media_type == "application/json"), None)
+    if exact_json is not None:
+        return exact_json
+
+    wildcard_application = next(
+        (media for media_type, media in media_types if media_type.startswith("application/") and "*" in media_type),
+        None,
+    )
+    if wildcard_application is not None:
+        return wildcard_application
+
+    return media_types[0][1] if media_types else None
+
+
+def _validate_path_parameters(source_path: str, parameters: list[ParameterModel]) -> None:
+    """Ensure every path template variable has a corresponding path parameter."""
+
+    required_parameters = {match.group(1) for match in _PATH_PARAMETER_PATTERN.finditer(source_path)}
+    defined_parameters = {parameter.name for parameter in parameters if parameter.location == "path"}
+    missing_parameters = sorted(required_parameters - defined_parameters)
+    if not missing_parameters:
+        return
+    raise SpecValidationError(
+        "Invalid OpenAPI specification.",
+        errors=[
+            {
+                "field": "paths",
+                "message": f"Path template parameters are missing definitions for {missing_parameters}.",
+                "value": {"path": source_path, "missing": missing_parameters},
+            }
+        ],
+    )
