@@ -12,10 +12,11 @@ def _parameter(
     required: bool = False,
     description: str | None = "Parameter description",
     schema_type: str | None = "string",
+    location: str | None = None,
 ) -> ParameterModel:
     return ParameterModel(
         name=name,
-        location="path" if required else "query",
+        location=location or ("path" if required else "query"),
         required=required,
         description=description,
         schema_model=SchemaModel(type=schema_type) if schema_type is not None else None,
@@ -69,8 +70,12 @@ def test_score_operations_returns_zero_for_comprehensively_bad_operation() -> No
                 summary=None,
                 description=None,
                 path_params=[],
-                query_params=[_parameter("verbose", description=None, schema_type=None)],
-                request_body=SchemaModel(type="object", properties={"payload": SchemaModel(type="any")}),
+                query_params=[
+                    _parameter("verbose", description=None, schema_type=None)
+                ],
+                request_body=SchemaModel(
+                    type="object", properties={"payload": SchemaModel(type="any")}
+                ),
             )
         ]
     )
@@ -82,7 +87,9 @@ def test_score_operations_returns_zero_for_comprehensively_bad_operation() -> No
         "schema_coverage": 0,
         "usability": 0,
     }
-    assert {finding.operation_id for finding in result.findings} == {"DeleteUserWithAnExtremelyLongIdentifierThatFails"}
+    assert {finding.operation_id for finding in result.findings} == {
+        "DeleteUserWithAnExtremelyLongIdentifierThatFails"
+    }
 
 
 def test_score_operations_can_fail_only_naming_dimension() -> None:
@@ -104,12 +111,16 @@ def test_score_operations_can_fail_only_safety_dimension() -> None:
 
 
 def test_score_operations_can_fail_only_schema_coverage_dimension() -> None:
-    result = score_operations([
-        _operation(
-            query_params=[_parameter("verbose", schema_type=None)],
-            request_body=SchemaModel(type="object", properties={"payload": SchemaModel(type="object")}),
-        )
-    ])
+    result = score_operations(
+        [
+            _operation(
+                query_params=[_parameter("verbose", schema_type=None)],
+                request_body=SchemaModel(
+                    type="object", properties={"payload": SchemaModel(type="object")}
+                ),
+            )
+        ]
+    )
 
     assert result.dimensions["naming"] == 25
     assert result.dimensions["safety"] == 25
@@ -118,19 +129,54 @@ def test_score_operations_can_fail_only_schema_coverage_dimension() -> None:
 
 
 def test_score_operations_can_fail_only_usability_dimension() -> None:
-    result = score_operations([
-        _operation(
-            summary=None,
-            description=None,
-            path_params=[_parameter("user_id", required=True, description=None)],
-            query_params=[_parameter("verbose", description=None)],
-        )
-    ])
+    result = score_operations(
+        [
+            _operation(
+                summary=None,
+                description=None,
+                path_params=[_parameter("user_id", required=True, description=None)],
+                query_params=[_parameter("verbose", description=None)],
+            )
+        ]
+    )
 
     assert result.dimensions["naming"] == 25
     assert result.dimensions["safety"] == 25
     assert result.dimensions["schema_coverage"] == 25
     assert result.dimensions["usability"] == 0
+
+
+def test_score_operations_treats_declared_path_params_as_valid_even_if_not_marked_required() -> None:
+    result = score_operations(
+        [
+            _operation(
+                path_params=[_parameter("user_id", required=False, location="path")],
+            )
+        ]
+    )
+
+    assert result.dimensions["safety"] == 25
+    assert all(
+        "required path parameters are missing definitions" not in finding.message
+        for finding in result.findings
+    )
+
+
+def test_score_operations_penalizes_missing_declared_path_param_definitions() -> None:
+    result = score_operations(
+        [
+            _operation(
+                source_path="/users/{user_id}/posts/{post_id}",
+                path_params=[_parameter("user_id", required=True)],
+            )
+        ]
+    )
+
+    assert result.dimensions["safety"] == 12
+    assert any(
+        finding.dimension == "safety" and "post_id" in finding.message
+        for finding in result.findings
+    )
 
 
 def test_score_operations_allows_unsafe_methods_when_requested() -> None:

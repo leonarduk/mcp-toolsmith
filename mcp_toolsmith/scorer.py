@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Iterator, Literal
 import re
 
 from mcp_toolsmith.models import OperationModel, ParameterModel, SchemaModel
@@ -33,7 +33,9 @@ class ScoringResult:
     findings: list[Finding]
 
 
-def score_operations(ops: list[OperationModel], *, allow_unsafe: bool = False) -> ScoringResult:
+def score_operations(
+    ops: list[OperationModel], *, allow_unsafe: bool = False
+) -> ScoringResult:
     """Score normalized operations across naming, safety, schema coverage, and usability."""
 
     dimensions = {
@@ -44,10 +46,20 @@ def score_operations(ops: list[OperationModel], *, allow_unsafe: bool = False) -
     }
     findings = sorted(
         [finding for result in dimensions.values() for finding in result.findings],
-        key=lambda finding: (finding.dimension, finding.operation_id, finding.level, finding.message),
+        # Keep findings grouped consistently for deterministic CLI/test output.
+        key=lambda finding: (
+            finding.dimension,
+            finding.operation_id,
+            finding.level,
+            finding.message,
+        ),
     )
     dimension_scores = {name: result.score for name, result in dimensions.items()}
-    return ScoringResult(total=sum(dimension_scores.values()), dimensions=dimension_scores, findings=findings)
+    return ScoringResult(
+        total=sum(dimension_scores.values()),
+        dimensions=dimension_scores,
+        findings=findings,
+    )
 
 
 @dataclass(frozen=True)
@@ -62,17 +74,36 @@ def _score_naming(ops: list[OperationModel]) -> _DimensionResult:
     for op in ops:
         checks.append(bool(_SNAKE_CASE_PATTERN.fullmatch(op.operation_id)))
         if not checks[-1]:
-            findings.append(Finding("warning", "naming", op.operation_id, "operation_id should be snake_case."))
+            findings.append(
+                Finding(
+                    "warning",
+                    "naming",
+                    op.operation_id,
+                    "operation_id should be snake_case.",
+                )
+            )
 
         checks.append(bool(_ACTION_OBJECT_PATTERN.fullmatch(op.operation_id)))
         if not checks[-1]:
             findings.append(
-                Finding("warning", "naming", op.operation_id, "operation_id should follow an action_object naming pattern.")
+                Finding(
+                    "warning",
+                    "naming",
+                    op.operation_id,
+                    "operation_id should follow an action_object naming pattern.",
+                )
             )
 
         checks.append(len(op.operation_id) < 40)
         if not checks[-1]:
-            findings.append(Finding("warning", "naming", op.operation_id, "operation_id should be shorter than 40 characters."))
+            findings.append(
+                Finding(
+                    "warning",
+                    "naming",
+                    op.operation_id,
+                    "operation_id should be shorter than 40 characters.",
+                )
+            )
     return _DimensionResult(_ratio_score(checks), findings)
 
 
@@ -83,16 +114,28 @@ def _score_safety(ops: list[OperationModel], *, allow_unsafe: bool) -> _Dimensio
         is_safe_method = allow_unsafe or op.http_method not in _UNSAFE_METHODS
         checks.append(is_safe_method)
         if not is_safe_method:
-            findings.append(Finding("error", "safety", op.operation_id, f"{op.http_method.upper()} requires the --unsafe flag."))
+            findings.append(
+                Finding(
+                    "error",
+                    "safety",
+                    op.operation_id,
+                    f"{op.http_method.upper()} requires the --unsafe flag.",
+                )
+            )
 
-        declared_path_params = {param.name for param in op.path_params if param.required}
+        declared_path_params = {param.name for param in op.path_params}
         expected_path_params = set(_PATH_PARAMETER_PATTERN.findall(op.source_path))
         all_required_present = declared_path_params == expected_path_params
         checks.append(all_required_present)
         if not all_required_present:
             missing = sorted(expected_path_params - declared_path_params)
             findings.append(
-                Finding("error", "safety", op.operation_id, f"required path parameters are missing definitions: {', '.join(missing)}")
+                Finding(
+                    "error",
+                    "safety",
+                    op.operation_id,
+                    f"required path parameters are missing definitions: {', '.join(missing)}",
+                )
             )
     return _DimensionResult(_ratio_score(checks), findings)
 
@@ -106,12 +149,20 @@ def _score_schema_coverage(ops: list[OperationModel]) -> _DimensionResult:
             checks.append(covered)
             if not covered:
                 findings.append(
-                    Finding("warning", "schema_coverage", op.operation_id, f"parameter '{param.name}' is missing a concrete schema type.")
+                    Finding(
+                        "warning",
+                        "schema_coverage",
+                        op.operation_id,
+                        f"parameter '{param.name}' is missing a concrete schema type.",
+                    )
                 )
 
         body_covered, body_messages = _schema_properties_are_typed(op.request_body)
         checks.extend(body_covered)
-        findings.extend(Finding("warning", "schema_coverage", op.operation_id, message) for message in body_messages)
+        findings.extend(
+            Finding("warning", "schema_coverage", op.operation_id, message)
+            for message in body_messages
+        )
     return _DimensionResult(_ratio_score(checks), findings)
 
 
@@ -122,20 +173,35 @@ def _score_usability(ops: list[OperationModel]) -> _DimensionResult:
         has_summary = bool(op.summary or op.description)
         checks.append(has_summary)
         if not has_summary:
-            findings.append(Finding("info", "usability", op.operation_id, "operation should include a summary or description."))
+            findings.append(
+                Finding(
+                    "info",
+                    "usability",
+                    op.operation_id,
+                    "operation should include a summary or description.",
+                )
+            )
 
         for param in _iter_parameters(op):
             has_description = bool(param.description)
             checks.append(has_description)
             if not has_description:
                 findings.append(
-                    Finding("info", "usability", op.operation_id, f"parameter '{param.name}' should include a description.")
+                    Finding(
+                        "info",
+                        "usability",
+                        op.operation_id,
+                        f"parameter '{param.name}' should include a description.",
+                    )
                 )
     return _DimensionResult(_ratio_score(checks), findings)
 
 
-def _iter_parameters(op: OperationModel) -> list[ParameterModel]:
-    return [*op.path_params, *op.query_params, *op.header_params, *op.cookie_params]
+def _iter_parameters(op: OperationModel) -> Iterator[ParameterModel]:
+    yield from op.path_params
+    yield from op.query_params
+    yield from op.header_params
+    yield from op.cookie_params
 
 
 def _ratio_score(checks: list[bool]) -> int:
@@ -149,7 +215,9 @@ def _schema_is_typed(schema: SchemaModel | None) -> bool:
     return schema is not None and schema.type not in {None, "object", "any"}
 
 
-def _schema_properties_are_typed(schema: SchemaModel | None, *, path: str = "requestBody") -> tuple[list[bool], list[str]]:
+def _schema_properties_are_typed(
+    schema: SchemaModel | None, *, path: str = "requestBody"
+) -> tuple[list[bool], list[str]]:
     if schema is None:
         return [True], []
 
@@ -164,7 +232,9 @@ def _schema_properties_are_typed(schema: SchemaModel | None, *, path: str = "req
             checks.append(typed)
             if not typed:
                 messages.append(f"{prop_path} is missing a concrete schema type.")
-            nested_checks, nested_messages = _schema_properties_are_typed(prop, path=prop_path)
+            nested_checks, nested_messages = _schema_properties_are_typed(
+                prop, path=prop_path
+            )
             checks.extend(nested_checks)
             messages.extend(nested_messages)
     elif schema.items is not None:
@@ -172,7 +242,9 @@ def _schema_properties_are_typed(schema: SchemaModel | None, *, path: str = "req
         checks.append(item_typed)
         if not item_typed:
             messages.append(f"{path}[] is missing a concrete schema type.")
-        nested_checks, nested_messages = _schema_properties_are_typed(schema.items, path=f"{path}[]")
+        nested_checks, nested_messages = _schema_properties_are_typed(
+            schema.items, path=f"{path}[]"
+        )
         checks.extend(nested_checks)
         messages.extend(nested_messages)
     else:
