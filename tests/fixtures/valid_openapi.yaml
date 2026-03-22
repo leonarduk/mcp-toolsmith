@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: Pet API
+  version: 1.0.0
+paths:
+  /pets/{petId}:
+    parameters:
+      - $ref: '#/components/parameters/PetId'
+    get:
+      operationId: getPet
+      summary: Get pet
+      tags: [pets]
+      parameters:
+        - name: includeVaccines
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Pet response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+    post:
+      summary: Update pet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PetUpdate'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: boolean
+components:
+  parameters:
+    PetId:
+      name: petId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Pet:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    PetUpdate:
+      type: object
+      properties:
+        name:
+          type: string
