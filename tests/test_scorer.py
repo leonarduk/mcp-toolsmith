@@ -183,3 +183,30 @@ def test_score_operations_allows_unsafe_methods_when_requested() -> None:
     result = score_operations([_operation(http_method="delete")], allow_unsafe=True)
 
     assert result.dimensions["safety"] == 25
+
+
+def test_score_operations_gives_full_schema_coverage_to_parameterless_operation() -> None:
+    """An operation with no parameters and no request body has nothing to type-check.
+
+    _ratio_score returns 25 (full marks) for an empty check list — this is intentional
+    and means "no schema coverage issues found", not "all schemas were typed".
+    """
+    result = score_operations(
+        [
+            _operation(
+                source_path="/health",
+                http_method="get",
+                operation_id="get_health",
+                path_params=[],
+                query_params=[],
+                header_params=[],
+                cookie_params=[],
+                request_body=None,
+            )
+        ]
+    )
+
+    assert result.dimensions["schema_coverage"] == 25
+    assert not any(
+        finding.dimension == "schema_coverage" for finding in result.findings
+    )

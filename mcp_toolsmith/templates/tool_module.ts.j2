@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { getApiBaseUrl, getApiToken } from "../config.js";
 
 export function register{{ group.module_name|capitalize }}Tools(server: McpServer): void {
@@ -6,8 +7,8 @@ export function register{{ group.module_name|capitalize }}Tools(server: McpServe
     "{{ op.operation_id }}",
     {{ op.summary | tojson }},
     {
-{% for param in op.params %}      {{ param.name }}: {{ param.schema | tojson }},
-{% endfor %}{% if op.has_request_body %}      body: {{ op.request_body_schema | tojson }},
+{% for param in op.params %}      {{ param.name }}: {{ param.ts_schema }},
+{% endfor %}{% if op.has_request_body %}      body: {{ op.request_body_ts_schema }},
 {% endif %}    },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
