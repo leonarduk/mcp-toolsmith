@@ -1,20 +1,21 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiBaseUrl, getApiToken } from "../config.js";
+import { z } from "zod";
 
 export function register{{ group.module_name|capitalize }}Tools(server: McpServer): void {
 {% for op in group.operations %}  server.tool(
     "{{ op.operation_id }}",
     {{ op.summary | tojson }},
     {
-{% for param in op.params %}      {{ param.name }}: {{ param.schema | tojson }},
-{% endfor %}{% if op.has_request_body %}      body: {{ op.request_body_schema | tojson }},
+{% for param in op.params %}      {{ param.name }}: {{ param.zod_schema }},
+{% endfor %}{% if op.has_request_body %}      body: {{ op.request_body_zod_schema }},
 {% endif %}    },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
       const apiToken = getApiToken();
       const url = new URL(`${apiBaseUrl}{{ op.path_template }}`);
 {% for param in op.params %}{% if param.location == 'query' %}      if (args.{{ param.name }} !== undefined) {
-        url.searchParams.set("{{ param.name }}", String(args.{{ param.name }}));
+        url.searchParams.set("{{ param.source_name }}", String(args.{{ param.name }}));
       }
 {% endif %}{% endfor %}      const response = await fetch(url, {
         method: "{{ op.http_method }}",

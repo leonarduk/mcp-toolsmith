@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Iterator, Literal
 import re
+
+from pydantic import BaseModel, ConfigDict
 
 from mcp_toolsmith.models import OperationModel, ParameterModel, SchemaModel
 
@@ -14,9 +15,10 @@ _SNAKE_CASE_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 _PATH_PARAMETER_PATTERN = re.compile(r"{([^}/]+)}")
 
 
-@dataclass(frozen=True)
-class Finding:
+class Finding(BaseModel):
     """A single scorer finding tied to one operation."""
+
+    model_config = ConfigDict(frozen=True)
 
     level: Literal["error", "warning", "info"]
     dimension: str
@@ -24,9 +26,10 @@ class Finding:
     message: str
 
 
-@dataclass(frozen=True)
-class ScoringResult:
+class ScoringResult(BaseModel):
     """Deterministic quality-scoring output for a batch of operations."""
+
+    model_config = ConfigDict(frozen=True)
 
     total: int
     dimensions: dict[str, int]
@@ -62,8 +65,9 @@ def score_operations(
     )
 
 
-@dataclass(frozen=True)
-class _DimensionResult:
+class _DimensionResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     score: int
     findings: list[Finding]
 
@@ -76,10 +80,10 @@ def _score_naming(ops: list[OperationModel]) -> _DimensionResult:
         if not checks[-1]:
             findings.append(
                 Finding(
-                    "warning",
-                    "naming",
-                    op.operation_id,
-                    "operation_id should be snake_case.",
+                    level="warning",
+                    dimension="naming",
+                    operation_id=op.operation_id,
+                    message="operation_id should be snake_case.",
                 )
             )
 
@@ -87,10 +91,10 @@ def _score_naming(ops: list[OperationModel]) -> _DimensionResult:
         if not checks[-1]:
             findings.append(
                 Finding(
-                    "warning",
-                    "naming",
-                    op.operation_id,
-                    "operation_id should follow an action_object naming pattern.",
+                    level="warning",
+                    dimension="naming",
+                    operation_id=op.operation_id,
+                    message="operation_id should follow an action_object naming pattern.",
                 )
             )
 
@@ -98,13 +102,13 @@ def _score_naming(ops: list[OperationModel]) -> _DimensionResult:
         if not checks[-1]:
             findings.append(
                 Finding(
-                    "warning",
-                    "naming",
-                    op.operation_id,
-                    "operation_id should be shorter than 40 characters.",
+                    level="warning",
+                    dimension="naming",
+                    operation_id=op.operation_id,
+                    message="operation_id should be shorter than 40 characters.",
                 )
             )
-    return _DimensionResult(_ratio_score(checks), findings)
+    return _DimensionResult(score=_ratio_score(checks), findings=findings)
 
 
 def _score_safety(ops: list[OperationModel], *, allow_unsafe: bool) -> _DimensionResult:
@@ -116,10 +120,10 @@ def _score_safety(ops: list[OperationModel], *, allow_unsafe: bool) -> _Dimensio
         if not is_safe_method:
             findings.append(
                 Finding(
-                    "error",
-                    "safety",
-                    op.operation_id,
-                    f"{op.http_method.upper()} requires the --unsafe flag.",
+                    level="error",
+                    dimension="safety",
+                    operation_id=op.operation_id,
+                    message=f"{op.http_method.upper()} requires the --unsafe flag.",
                 )
             )
 
@@ -131,13 +135,13 @@ def _score_safety(ops: list[OperationModel], *, allow_unsafe: bool) -> _Dimensio
             missing = sorted(expected_path_params - declared_path_params)
             findings.append(
                 Finding(
-                    "error",
-                    "safety",
-                    op.operation_id,
-                    f"required path parameters are missing definitions: {', '.join(missing)}",
+                    level="error",
+                    dimension="safety",
+                    operation_id=op.operation_id,
+                    message=f"required path parameters are missing definitions: {', '.join(missing)}",
                 )
             )
-    return _DimensionResult(_ratio_score(checks), findings)
+    return _DimensionResult(score=_ratio_score(checks), findings=findings)
 
 
 def _score_schema_coverage(ops: list[OperationModel]) -> _DimensionResult:
@@ -150,20 +154,25 @@ def _score_schema_coverage(ops: list[OperationModel]) -> _DimensionResult:
             if not covered:
                 findings.append(
                     Finding(
-                        "warning",
-                        "schema_coverage",
-                        op.operation_id,
-                        f"parameter '{param.name}' is missing a concrete schema type.",
+                        level="warning",
+                        dimension="schema_coverage",
+                        operation_id=op.operation_id,
+                        message=f"parameter '{param.name}' is missing a concrete schema type.",
                     )
                 )
 
         body_covered, body_messages = _schema_properties_are_typed(op.request_body)
         checks.extend(body_covered)
         findings.extend(
-            Finding("warning", "schema_coverage", op.operation_id, message)
+            Finding(
+                level="warning",
+                dimension="schema_coverage",
+                operation_id=op.operation_id,
+                message=message,
+            )
             for message in body_messages
         )
-    return _DimensionResult(_ratio_score(checks), findings)
+    return _DimensionResult(score=_ratio_score(checks), findings=findings)
 
 
 def _score_usability(ops: list[OperationModel]) -> _DimensionResult:
@@ -175,10 +184,10 @@ def _score_usability(ops: list[OperationModel]) -> _DimensionResult:
         if not has_summary:
             findings.append(
                 Finding(
-                    "info",
-                    "usability",
-                    op.operation_id,
-                    "operation should include a summary or description.",
+                    level="info",
+                    dimension="usability",
+                    operation_id=op.operation_id,
+                    message="operation should include a summary or description.",
                 )
             )
 
@@ -188,13 +197,13 @@ def _score_usability(ops: list[OperationModel]) -> _DimensionResult:
             if not has_description:
                 findings.append(
                     Finding(
-                        "info",
-                        "usability",
-                        op.operation_id,
-                        f"parameter '{param.name}' should include a description.",
+                        level="info",
+                        dimension="usability",
+                        operation_id=op.operation_id,
+                        message=f"parameter '{param.name}' should include a description.",
                     )
                 )
-    return _DimensionResult(_ratio_score(checks), findings)
+    return _DimensionResult(score=_ratio_score(checks), findings=findings)
 
 
 def _iter_parameters(op: OperationModel) -> Iterator[ParameterModel]:
