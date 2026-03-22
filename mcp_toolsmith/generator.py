@@ -182,8 +182,6 @@ def _parameter_context(param: ParameterModel) -> OperationDict:
     }
 
 
-
-
 def _typescript_schema_expression(schema: SchemaModel | None) -> str:
     """Render a compact Zod expression for generated TypeScript tool schemas."""
     if schema is None:
@@ -213,7 +211,7 @@ def _typescript_schema_expression(schema: SchemaModel | None) -> str:
             child_expr = _typescript_schema_expression(child)
             if name not in required:
                 child_expr = f"{child_expr}.optional()"
-            fields.append(f"{name}: {child_expr}")
+            fields.append(f'"{name}": {child_expr}')
         return "z.object({" + ", ".join(fields) + "})"
 
     return "z.unknown()"
