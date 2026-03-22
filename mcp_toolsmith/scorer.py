@@ -232,6 +232,9 @@ def _schema_properties_are_typed(
             checks.append(typed)
             if not typed:
                 messages.append(f"{prop_path} is missing a concrete schema type.")
+            # Intentionally recurse even when the property itself fails the type check:
+            # this allows leaf nodes under an untyped intermediate object to still
+            # contribute passing checks, producing a graded score rather than all-or-nothing.
             nested_checks, nested_messages = _schema_properties_are_typed(
                 prop, path=prop_path
             )
