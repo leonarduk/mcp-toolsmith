@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 import httpcore
 import httpx
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 
 class SpecLoadError(Exception):
