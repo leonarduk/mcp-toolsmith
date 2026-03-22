@@ -32,9 +32,21 @@ def test_version_flag_reports_package_version(
 def test_generate_command_supports_new_flags(run_cli: Callable[..., subprocess.CompletedProcess[str]], tmp_path) -> None:
     """The generate command should expose output-planning flags."""
     fixture = "tests/fixtures/valid_openapi.yaml"
-    result = run_cli("generate", fixture, "--out", str(tmp_path / "out"), "--dry-run")
+    result = run_cli(
+        "generate",
+        fixture,
+        "--out",
+        str(tmp_path / "out"),
+        "--dry-run",
+        "--include",
+        "pets",
+        "--exclude",
+        "admin",
+        "--no-report",
+    )
 
     assert result.returncode == 0
     assert "planned_files=" in result.stdout
     assert "src/index.ts" in result.stdout
+    assert "Generation Summary" in result.stdout
     assert result.stderr == ""

@@ -161,6 +161,8 @@ def _operation_context(op: OperationModel) -> OperationDict:
         "path_template": _path_template(op.source_path),
         "params": [_parameter_context(param) for param in _iter_parameters(op)],
         "request_body_schema": _json_schema(op.request_body),
+        "request_body_ts_schema": _typescript_schema_expression(op.request_body),
+        "request_body_zod_schema": _zod_schema(op.request_body),
         "has_request_body": op.request_body is not None,
     }
 
@@ -172,12 +174,50 @@ def _iter_parameters(op: OperationModel) -> list[ParameterModel]:
 def _parameter_context(param: ParameterModel) -> OperationDict:
     schema = _json_schema(param.schema_model)
     return {
-        "name": param.name,
+        "name": _sanitize_identifier(param.name),
+        "source_name": param.name,
         "location": param.location,
         "required": param.required,
         "description": param.description or f"{param.location} parameter {param.name}",
         "schema": schema,
+        "ts_schema": _typescript_schema_expression(param.schema_model),
+        "zod_schema": _zod_schema(param.schema_model),
     }
+
+
+def _typescript_schema_expression(schema: SchemaModel | None) -> str:
+    """Render a compact Zod expression for generated TypeScript tool schemas."""
+    if schema is None:
+        return "z.string()"
+
+    if schema.enum:
+        values = ", ".join(repr(value) for value in schema.enum if isinstance(value, str))
+        if values and len(schema.enum) == sum(isinstance(value, str) for value in schema.enum):
+            return f"z.enum([{values}])"
+
+    schema_type = schema.type
+    if schema_type == "string":
+        return "z.string()"
+    if schema_type == "integer":
+        return "z.number().int()"
+    if schema_type == "number":
+        return "z.number()"
+    if schema_type == "boolean":
+        return "z.boolean()"
+    if schema_type == "array":
+        item_schema = _typescript_schema_expression(schema.items)
+        return f"z.array({item_schema})"
+    if schema_type == "object" or schema.properties:
+        fields: list[str] = []
+        required = set(schema.required)
+        for name, child in sorted(schema.properties.items()) if schema.properties else []:
+            child_expr = _typescript_schema_expression(child)
+            if name not in required:
+                child_expr = f"{child_expr}.optional()"
+            fields.append(f'"{name}": {child_expr}')
+        return "z.object({" + ", ".join(fields) + "})"
+
+    return "z.unknown()"
 
 
 def _json_schema(schema: SchemaModel | None) -> dict[str, Any]:
@@ -202,6 +242,39 @@ def _json_schema(schema: SchemaModel | None) -> dict[str, Any]:
     if schema.items is not None:
         rendered["items"] = _json_schema(schema.items)
     return rendered or {"type": "string"}
+
+
+def _zod_schema(schema: SchemaModel | None) -> str:
+    """Render a conservative Zod schema expression for generated templates."""
+    if schema is None:
+        return "z.string()"
+
+    if schema.enum:
+        literals = ", ".join(repr(value) for value in schema.enum)
+        return f"z.enum([{literals}])"
+
+    if schema.type == "string":
+        return "z.string()"
+    if schema.type == "integer":
+        return "z.number().int()"
+    if schema.type == "number":
+        return "z.number()"
+    if schema.type == "boolean":
+        return "z.boolean()"
+    if schema.type == "array":
+        return f"z.array({_zod_schema(schema.items)})"
+    if schema.type == "object" or schema.properties:
+        required = set(schema.required)
+        props: list[str] = []
+        for name, child in sorted(schema.properties.items()):
+            key = _sanitize_identifier(name)
+            child_schema = _zod_schema(child)
+            if name not in required:
+                child_schema = f"{child_schema}.optional()"
+            props.append(f"{key}: {child_schema}")
+        return "z.object({" + ", ".join(props) + "})"
+
+    return "z.any()"
 
 
 def _path_template(path: str) -> str:

@@ -10,6 +10,7 @@ import yaml
 
 from mcp_toolsmith.extractor import extract_operations
 from mcp_toolsmith.generator import generate, group_by_tag
+from mcp_toolsmith.report import build_report
 from mcp_toolsmith.scorer import score_operations
 
 
@@ -83,3 +84,35 @@ def test_generate_petstore_project_and_typescript_compile(tmp_path: Path) -> Non
         text=True,
     )
     assert compile_result.returncode == 0, compile_result.stderr or compile_result.stdout
+
+
+def test_report_matches_petstore_generation_result(tmp_path: Path) -> None:
+    spec = _load_fixture("petstore_v3.yaml")
+    operations = extract_operations(spec)
+    scoring = score_operations(operations)
+    out_dir = tmp_path / "generated"
+
+    result = generate(operations, scoring, out_dir)
+    report = build_report(
+        spec_title=spec["info"]["title"],
+        spec_version=spec["info"]["version"],
+        total_operations=len(operations),
+        generated_operations=len(operations) - len(result.skipped_operations),
+        skipped_operations=[],
+        score=scoring,
+        generated_files=[path.relative_to(out_dir) for path in result.files],
+        cli_flags={"out": str(out_dir)},
+    )
+
+    assert report.spec_title == "Petstore"
+    assert report.spec_version == "1.0.0"
+    assert report.total_operations == 4
+    assert report.generated_operations == 3
+    assert report.score.total == scoring.total
+    assert report.generated_files == [
+        "package.json",
+        "src/config.ts",
+        "src/index.ts",
+        "src/tools/pets.ts",
+        "tsconfig.json",
+    ]
