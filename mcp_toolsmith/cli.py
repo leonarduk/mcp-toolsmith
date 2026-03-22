@@ -46,10 +46,25 @@ def generate(
     unsafe: bool = typer.Option(False, "--unsafe", help="Include DELETE/PUT/PATCH operations."),
 ) -> None:
     """Generate an MCP server from an OpenAPI specification."""
-    spec = load_spec(source)
-    operations = extract_operations(spec)
-    scoring = score_operations(operations, allow_unsafe=unsafe)
-    result = generate_project(operations, scoring, out, dry_run=dry_run, unsafe=unsafe)
+    try:
+        spec = load_spec(source)
+    except Exception as exc:  # noqa: BLE001
+        typer.echo(f"Error loading spec: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    try:
+        operations = extract_operations(spec)
+    except Exception as exc:  # noqa: BLE001
+        typer.echo(f"Error extracting operations: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    try:
+        scoring = score_operations(operations, allow_unsafe=unsafe)
+        result = generate_project(operations, scoring, out, dry_run=dry_run, unsafe=unsafe)
+    except Exception as exc:  # noqa: BLE001
+        typer.echo(f"Error generating project: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
     typer.echo(f"planned_files={len(result.files)} skipped_operations={len(result.skipped_operations)}")
     for path in result.files:
         typer.echo(str(path))

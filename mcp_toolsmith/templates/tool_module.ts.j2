@@ -1,17 +1,14 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiBaseUrl, getApiToken } from "../config.js";
 
-export function register{{ group.module_name|capitalize }}Tools(server: unknown): void {
-  const mcpServer = server as any;
-{% for op in group.operations %}  mcpServer.registerTool(
+export function register{{ group.module_name|capitalize }}Tools(server: McpServer): void {
+{% for op in group.operations %}  server.tool(
     "{{ op.operation_id }}",
+    {{ op.summary | tojson }},
     {
-      title: "{{ op.operation_id }}",
-      description: {{ op.summary | tojson }},
-      inputSchema: {
-{% for param in op.params %}        {{ param.name }}: {{ param.schema | tojson }},
-{% endfor %}{% if op.has_request_body %}        body: {{ op.request_body_schema | tojson }},
-{% endif %}      },
-    },
+{% for param in op.params %}      {{ param.name }}: {{ param.schema | tojson }},
+{% endfor %}{% if op.has_request_body %}      body: {{ op.request_body_schema | tojson }},
+{% endif %}    },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
       const apiToken = getApiToken();
@@ -32,7 +29,7 @@ export function register{{ group.module_name|capitalize }}Tools(server: unknown)
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text,
           },
         ],
