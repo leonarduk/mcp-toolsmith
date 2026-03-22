@@ -47,7 +47,7 @@ def extract_operations(document: Mapping[str, Any]) -> list[OperationModel]:
             merged_parameters = _merge_parameters(path_parameters, _normalize_parameters(operation.get("parameters", [])))
             _validate_path_parameters(source_path, merged_parameters)
             grouped = _group_parameters(merged_parameters)
-            operation_id = _operation_id(source_path, method, operation.get("operationId"), generated_ids=generated_operation_ids)
+            operation_id = _operation_id(source_path, method, operation.get("operationId"))
             if operation_id in generated_operation_ids:
                 raise SpecValidationError(
                     "Invalid OpenAPI specification.",
@@ -224,7 +224,7 @@ def _clean_str(value: Any) -> str | None:
     return stripped or None
 
 
-def _operation_id(source_path: str, method: str, raw_operation_id: Any, *, generated_ids: set[str]) -> str:
+def _operation_id(source_path: str, method: str, raw_operation_id: Any) -> str:
     """Return an explicit operationId or a deterministic fallback identifier."""
 
     if isinstance(raw_operation_id, str) and raw_operation_id.strip():

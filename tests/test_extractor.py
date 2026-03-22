@@ -260,6 +260,30 @@ def test_extract_operations_validates_missing_path_parameters() -> None:
     ]
 
 
+def test_extract_operations_preserves_same_name_parameters_at_different_locations() -> None:
+    spec = _minimal_spec()
+    spec["paths"] = {
+        "/pets/{id}": {
+            "get": {
+                "parameters": [
+                    {"name": "id", "in": "path", "required": True, "schema": {"type": "string"}},
+                    {"name": "id", "in": "query", "schema": {"type": "integer"}},
+                ],
+                "responses": {"200": {"description": "ok"}},
+            }
+        }
+    }
+
+    [operation] = extract_operations(spec)
+
+    assert len(operation.path_params) == 1
+    assert operation.path_params[0].schema_model is not None
+    assert operation.path_params[0].schema_model.type == "string"
+    assert len(operation.query_params) == 1
+    assert operation.query_params[0].schema_model is not None
+    assert operation.query_params[0].schema_model.type == "integer"
+
+
 def test_extract_operations_merges_parameters_with_operation_override() -> None:
     spec = _minimal_spec()
     spec["paths"] = {
@@ -397,6 +421,25 @@ def test_extract_operations_rejects_duplicate_generated_operation_ids() -> None:
             "field": "operationId",
             "message": "Duplicate operationId detected: get_pets_list",
             "value": {"path": "/pets//list", "method": "get", "operationId": "get_pets_list"},
+        }
+    ]
+
+
+def test_extract_operations_rejects_explicit_operation_id_colliding_with_generated_fallback() -> None:
+    spec = _minimal_spec()
+    spec["paths"] = {
+        "/pets": {"get": {"responses": {"200": {"description": "ok"}}}},
+        "/other": {"get": {"operationId": "get_pets", "responses": {"200": {"description": "ok"}}}},
+    }
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        extract_operations(spec)
+
+    assert exc_info.value.errors == [
+        {
+            "field": "operationId",
+            "message": "Duplicate operationId detected: get_pets",
+            "value": {"path": "/other", "method": "get", "operationId": "get_pets"},
         }
     ]
 
