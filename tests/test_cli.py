@@ -37,4 +37,18 @@ def test_generate_command_supports_new_flags(run_cli: Callable[..., subprocess.C
     assert result.returncode == 0
     assert "planned_files=" in result.stdout
     assert "src/index.ts" in result.stdout
+    assert "snippets/claude_desktop_config.json" in result.stdout
+    assert "dry_run=true snippets=skipped" in result.stdout
+    assert result.stderr == ""
+
+
+def test_generate_command_reports_snippets_directory(run_cli: Callable[..., subprocess.CompletedProcess[str]], tmp_path) -> None:
+    """Successful generation should advertise the snippets output directory."""
+    fixture = "tests/fixtures/valid_openapi.yaml"
+    out_dir = tmp_path / "out"
+    result = run_cli("generate", fixture, "--out", str(out_dir))
+
+    assert result.returncode == 0
+    assert f"snippets_dir={out_dir / 'snippets'}" in result.stdout
+    assert (out_dir / "snippets" / "claude_desktop_config.json").exists()
     assert result.stderr == ""

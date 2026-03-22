@@ -60,7 +60,15 @@ def generate(
 
     try:
         scoring = score_operations(operations, allow_unsafe=unsafe)
-        result = generate_project(operations, scoring, out, dry_run=dry_run, unsafe=unsafe)
+        spec_title = str(spec.get("info", {}).get("title", "Generated MCP Server"))
+        result = generate_project(
+            operations,
+            scoring,
+            out,
+            dry_run=dry_run,
+            unsafe=unsafe,
+            spec_title=spec_title,
+        )
     except Exception as exc:  # noqa: BLE001
         typer.echo(f"Error generating project: {exc}", err=True)
         raise typer.Exit(code=1) from exc
@@ -68,6 +76,10 @@ def generate(
     typer.echo(f"planned_files={len(result.files)} skipped_operations={len(result.skipped_operations)}")
     for path in result.files:
         typer.echo(str(path))
+    if dry_run:
+        typer.echo("dry_run=true snippets=skipped")
+    else:
+        typer.echo(f"snippets_dir={out / 'snippets'}")
 
 
 def main() -> None:

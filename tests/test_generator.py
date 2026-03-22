@@ -42,12 +42,15 @@ def test_generate_dry_run_plans_files_without_writing(tmp_path: Path) -> None:
     operations = extract_operations(spec)
     scoring = score_operations(operations)
 
-    result = generate(operations, scoring, tmp_path / "out", dry_run=True)
+    result = generate(operations, scoring, tmp_path / "out", dry_run=True, spec_title=str(spec["info"]["title"]))
 
     assert not (tmp_path / "out").exists()
     assert result.skipped_operations == ["delete_pet"]
     assert sorted(path.relative_to(tmp_path / "out").as_posix() for path in result.files) == [
         "package.json",
+        "snippets/claude_desktop_config.json",
+        "snippets/langchain_snippet.py",
+        "snippets/vscode_mcp_config.json",
         "src/config.ts",
         "src/index.ts",
         "src/tools/pets.ts",
@@ -64,13 +67,16 @@ def test_generate_petstore_project_and_typescript_compile(tmp_path: Path) -> Non
     scoring = score_operations(operations)
     out_dir = tmp_path / "generated"
 
-    result = generate(operations, scoring, out_dir)
+    result = generate(operations, scoring, out_dir, spec_title=str(spec["info"]["title"]))
 
     assert result.skipped_operations == ["delete_pet"]
     assert (out_dir / "package.json").exists()
     assert (out_dir / "src" / "config.ts").exists()
     assert (out_dir / "src" / "index.ts").exists()
     assert (out_dir / "src" / "tools" / "pets.ts").exists()
+    assert (out_dir / "snippets" / "claude_desktop_config.json").exists()
+    assert (out_dir / "snippets" / "vscode_mcp_config.json").exists()
+    assert (out_dir / "snippets" / "langchain_snippet.py").exists()
 
     install = subprocess.run(["npm", "install"], cwd=out_dir, check=False, capture_output=True, text=True)
     assert install.returncode == 0, install.stderr or install.stdout
@@ -83,3 +89,27 @@ def test_generate_petstore_project_and_typescript_compile(tmp_path: Path) -> Non
         text=True,
     )
     assert compile_result.returncode == 0, compile_result.stderr or compile_result.stdout
+
+
+def test_generate_writes_expected_snippets_and_server_name(tmp_path: Path) -> None:
+    spec = _load_fixture("petstore_v3.yaml")
+    operations = extract_operations(spec)
+    scoring = score_operations(operations)
+    out_dir = tmp_path / "petstore"
+
+    generate(operations, scoring, out_dir, spec_title=str(spec["info"]["title"]))
+
+    golden_dir = Path(__file__).parent / "golden" / "petstore" / "snippets"
+    generated_dir = out_dir / "snippets"
+    expected_files = sorted(path.name for path in golden_dir.iterdir() if path.is_file())
+
+    assert sorted(path.name for path in generated_dir.iterdir() if path.is_file()) == expected_files
+    for name in expected_files:
+        generated = (generated_dir / name).read_text(encoding="utf-8")
+        golden = (golden_dir / name).read_text(encoding="utf-8").replace("__SERVER_PATH__", out_dir.resolve().as_posix())
+        assert generated == golden
+
+    index_contents = (out_dir / "src" / "index.ts").read_text(encoding="utf-8")
+    package_contents = (out_dir / "package.json").read_text(encoding="utf-8")
+    assert 'name: "petstore"' in index_contents
+    assert '"name": "petstore"' in package_contents
