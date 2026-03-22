@@ -29,12 +29,12 @@ def test_version_flag_reports_package_version(
     assert result.stderr == ""
 
 
-def test_generate_stub_runs_cleanly(
-    run_cli: Callable[..., subprocess.CompletedProcess[str]],
-) -> None:
-    """The generate stub should exit successfully with its placeholder output."""
-    result = run_cli("generate")
+def test_generate_command_supports_new_flags(run_cli: Callable[..., subprocess.CompletedProcess[str]], tmp_path) -> None:
+    """The generate command should expose output-planning flags."""
+    fixture = "tests/fixtures/valid_openapi.yaml"
+    result = run_cli("generate", fixture, "--out", str(tmp_path / "out"), "--dry-run")
 
     assert result.returncode == 0
-    assert result.stdout.strip() == "not yet implemented"
+    assert "planned_files=" in result.stdout
+    assert "src/index.ts" in result.stdout
     assert result.stderr == ""

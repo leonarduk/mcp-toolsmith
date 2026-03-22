@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: Petstore
+  version: 1.0.0
+paths:
+  /pets:
+    get:
+      operationId: list_pets
+      summary: List pets
+      tags: [pets]
+      parameters:
+        - name: limit
+          in: query
+          description: Max items
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+    post:
+      operationId: create_pet
+      summary: Create pet
+      tags: [pets]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: created
+  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        description: Pet identifier
+        schema:
+          type: string
+    get:
+      operationId: get_pet
+      summary: Get pet
+      tags: [pets]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+    delete:
+      operationId: delete_pet
+      summary: Delete pet
+      tags: [admin]
+      responses:
+        '204':
+          description: deleted
