@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from collections.abc import Callable
 
 import pytest
@@ -10,11 +11,11 @@ import pytest
 
 @pytest.fixture
 def run_cli() -> Callable[..., subprocess.CompletedProcess[str]]:
-    """Run the installed CLI entrypoint and capture text output."""
+    """Run the package CLI module and capture text output."""
 
     def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["mcp-toolsmith", *args],
+            [sys.executable, "-m", "mcp_toolsmith.cli", *args],
             check=False,
             capture_output=True,
             text=True,
