@@ -74,7 +74,14 @@ def generate(
 
     try:
         scoring = score_operations(filtered_operations, allow_unsafe=unsafe)
-        result = generate_project(filtered_operations, scoring, out, dry_run=dry_run, unsafe=unsafe)
+        result = generate_project(
+            filtered_operations,
+            scoring,
+            out,
+            spec_title=spec.get("info", {}).get("title", "Unknown Spec"),
+            dry_run=dry_run,
+            unsafe=unsafe,
+        )
     except Exception as exc:  # noqa: BLE001
         typer.echo(f"Error generating project: {exc}", err=True)
         raise typer.Exit(code=1) from exc
@@ -167,6 +174,8 @@ def _render_summary(report: GenerationReport) -> None:
         if len(report.skipped_operations) > 3:
             reasons += ", ..."
         table.add_row("Skip reasons", reasons)
+    if any(path.startswith("snippets/") for path in report.generated_files):
+        table.add_row("Snippets", "See snippets/ for Claude Desktop, VS Code, and LangChain")
     console.print(table)
 
 

@@ -19,6 +19,10 @@ def _load_fixture(name: str) -> dict[str, object]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def _golden_text(name: str) -> str:
+    return (Path(__file__).parent / "golden" / "petstore" / "snippets" / name).read_text(encoding="utf-8")
+
+
 def test_group_by_tag_uses_first_tag_and_default_fallback() -> None:
     operations = extract_operations(
         {
@@ -49,6 +53,9 @@ def test_generate_dry_run_plans_files_without_writing(tmp_path: Path) -> None:
     assert result.skipped_operations == ["delete_pet"]
     assert sorted(path.relative_to(tmp_path / "out").as_posix() for path in result.files) == [
         "package.json",
+        "snippets/claude_desktop_config.json",
+        "snippets/langchain_snippet.py",
+        "snippets/vscode_mcp_config.json",
         "src/config.ts",
         "src/index.ts",
         "src/tools/pets.ts",
@@ -69,6 +76,9 @@ def test_generate_petstore_project_and_typescript_compile(tmp_path: Path) -> Non
 
     assert result.skipped_operations == ["delete_pet"]
     assert (out_dir / "package.json").exists()
+    assert (out_dir / "snippets" / "claude_desktop_config.json").exists()
+    assert (out_dir / "snippets" / "langchain_snippet.py").exists()
+    assert (out_dir / "snippets" / "vscode_mcp_config.json").exists()
     assert (out_dir / "src" / "config.ts").exists()
     assert (out_dir / "src" / "index.ts").exists()
     assert (out_dir / "src" / "tools" / "pets.ts").exists()
@@ -111,8 +121,38 @@ def test_report_matches_petstore_generation_result(tmp_path: Path) -> None:
     assert report.score.total == scoring.total
     assert report.generated_files == [
         "package.json",
+        "snippets/claude_desktop_config.json",
+        "snippets/langchain_snippet.py",
+        "snippets/vscode_mcp_config.json",
         "src/config.ts",
         "src/index.ts",
         "src/tools/pets.ts",
         "tsconfig.json",
     ]
+
+
+def test_generate_writes_expected_snippets_with_output_path(tmp_path: Path) -> None:
+    spec = _load_fixture("petstore_v3.yaml")
+    operations = extract_operations(spec)
+    scoring = score_operations(operations)
+    out_dir = tmp_path / "generated"
+
+    generate(operations, scoring, out_dir, spec_title=spec["info"]["title"])
+
+    expected_files = {
+        "claude_desktop_config.json",
+        "langchain_snippet.py",
+        "vscode_mcp_config.json",
+    }
+    assert {path.name for path in (out_dir / "snippets").iterdir()} == expected_files
+
+    replacements = {
+        str(out_dir.resolve()): "__OUT_DIR__",
+        "petstore": "__SERVER_NAME__",
+        "Petstore": "__SERVER_TITLE__",
+    }
+    for name in sorted(expected_files):
+        actual = (out_dir / "snippets" / name).read_text(encoding="utf-8")
+        for source, target in replacements.items():
+            actual = actual.replace(source, target)
+        assert actual.strip() == _golden_text(name).strip()

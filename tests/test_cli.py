@@ -49,4 +49,5 @@ def test_generate_command_supports_new_flags(run_cli: Callable[..., subprocess.C
     assert "planned_files=" in result.stdout
     assert "src/index.ts" in result.stdout
     assert "Generation Summary" in result.stdout
+    assert "snippets/" in result.stdout
     assert result.stderr == ""
