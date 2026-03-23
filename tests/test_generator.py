@@ -9,7 +9,8 @@ import shutil
 import yaml
 
 from mcp_toolsmith.extractor import extract_operations
-from mcp_toolsmith.generator import generate, group_by_tag
+from mcp_toolsmith.models import SchemaModel
+from mcp_toolsmith.generator import _typescript_schema_expression, generate, group_by_tag
 from mcp_toolsmith.report import build_report
 from mcp_toolsmith.scorer import score_operations
 
@@ -36,6 +37,48 @@ def test_group_by_tag_uses_first_tag_and_default_fallback() -> None:
     assert sorted(grouped) == ["default", "pets"]
     assert [op.operation_id for op in grouped["default"]] == ["ping_default"]
     assert [op.operation_id for op in grouped["pets"]] == ["list_pets"]
+
+
+def test_typescript_schema_expression_handles_primitive_and_fallback_types() -> None:
+    assert _typescript_schema_expression(None) == "z.string()"
+    assert _typescript_schema_expression(SchemaModel(type="string")) == "z.string()"
+    assert _typescript_schema_expression(SchemaModel(type="integer")) == "z.number().int()"
+    assert _typescript_schema_expression(SchemaModel(type="number")) == "z.number()"
+    assert _typescript_schema_expression(SchemaModel(type="boolean")) == "z.boolean()"
+    assert _typescript_schema_expression(SchemaModel(type="null")) == "z.unknown()"
+
+
+def test_typescript_schema_expression_handles_arrays_and_nested_arrays() -> None:
+    string_array = SchemaModel(type="array", items=SchemaModel(type="string"))
+    nested_array = SchemaModel(type="array", items=string_array)
+
+    assert _typescript_schema_expression(string_array) == "z.array(z.string())"
+    assert _typescript_schema_expression(nested_array) == "z.array(z.array(z.string()))"
+
+
+def test_typescript_schema_expression_handles_required_optional_and_quoted_object_keys() -> None:
+    schema = SchemaModel(
+        type="object",
+        required=["name", "x-api-key"],
+        properties={
+            "name": SchemaModel(type="string"),
+            "nickname": SchemaModel(type="string"),
+            "my-field": SchemaModel(type="boolean"),
+            "x-api-key": SchemaModel(type="string"),
+        },
+    )
+
+    assert _typescript_schema_expression(schema) == (
+        'z.object({"my-field": z.boolean().optional(), "name": z.string(), '
+        '"nickname": z.string().optional(), "x-api-key": z.string()})'
+    )
+
+
+def test_typescript_schema_expression_handles_string_and_mixed_type_enums() -> None:
+    assert _typescript_schema_expression(SchemaModel(enum=["small", "medium", "large"])) == (
+        "z.enum(['small', 'medium', 'large'])"
+    )
+    assert _typescript_schema_expression(SchemaModel(enum=["small", 2, "large"])) == "z.unknown()"
 
 
 def test_generate_dry_run_plans_files_without_writing(tmp_path: Path) -> None:
