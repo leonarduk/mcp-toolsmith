@@ -7,7 +7,6 @@ on:
 
 jobs:
   lint:
-    if: false
     name: Code style (ruff)
     runs-on: ubuntu-latest
     steps:
@@ -17,15 +16,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install project and dev dependencies
+        run: python -m pip install -e ".[dev]"
 
       - name: Run ruff
-        run: ruff check backend/
+        run: python -m ruff check .
 
   test:
-    if: false
     name: Tests (pytest)
     runs-on: ubuntu-latest
     steps:
@@ -35,97 +34,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
-      - name: Install system audio libraries
-        run: sudo apt-get install -y libportaudio2
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Install dependencies
-        run: |
-          uv sync
-          uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          uv pip install torchcrepe
+      - name: Install project and dev dependencies
+        run: python -m pip install -e ".[dev]"
 
       - name: Run tests with coverage
-        run: uv run pytest backend/tests/ -v --tb=short --cov=backend --cov-report=xml
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          slug: leonarduk/sing-attune
-        # No token needed - org uses tokenless uploads
-
-  frontend-test:
-    if: false
-    name: Frontend tests (Vitest)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Run frontend tests
-        run: npm test
-        working-directory: frontend
-
-  frontend-build:
-    name: Frontend build (TypeScript)
-    runs-on: ubuntu-latest
-    needs: frontend-test
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: frontend
-
-  e2e:
-    name: E2E tests (Playwright)
-    runs-on: ubuntu-latest
-    needs: frontend-build
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-        working-directory: frontend
-
-      - name: Run E2E tests
-        run: npm run test:e2e
-        working-directory: frontend
+        run: python -m pytest --cov=mcp_toolsmith --cov-report=xml --cov-fail-under=80 tests
 
   ai-review:
     name: AI code review
