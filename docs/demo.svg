@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450" role="img" aria-label="Terminal demo of mcp-toolsmith generate flow">
+  <rect width="800" height="450" fill="#0b1020"/>
+  <rect width="800" height="34" fill="#1f2937"/>
+  <circle cx="16" cy="17" r="5" fill="#ef4444"/>
+  <circle cx="34" cy="17" r="5" fill="#f59e0b"/>
+  <circle cx="52" cy="17" r="5" fill="#22c55e"/>
+  <text x="400" y="22" text-anchor="middle" fill="#cbd5e1" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13">mcp-toolsmith demo</text>
+
+  <g fill="#e2e8f0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13">
+    <text x="16" y="58" fill="#86efac">$ pip install mcp-toolsmith</text>
+    <text x="16" y="78" fill="#94a3b8">Successfully installed mcp-toolsmith-0.1.0</text>
+
+    <text x="16" y="108" fill="#86efac">$ mcp-toolsmith generate https://petstore3.swagger.io/api/v3/openapi.json --out ./petstore-mcp</text>
+    <text x="16" y="132">Generation Summary</text>
+    <text x="16" y="152">Spec: Petstore (1.0.0)     Total operations: 4</text>
+    <text x="16" y="172">Generated: 3               Skipped: 1</text>
+    <text x="16" y="192">Score: 96                  Warnings: 1</text>
+    <text x="16" y="212">Skip reasons: delete_pet: unsafe HTTP method requires --unsafe</text>
+    <text x="16" y="232">planned_files=8 skipped_operations=1</text>
+    <text x="16" y="252">./petstore-mcp/src/index.ts</text>
+    <text x="16" y="272">./petstore-mcp/src/config.ts</text>
+    <text x="16" y="292">./petstore-mcp/package.json</text>
+    <text x="16" y="312">./petstore-mcp/tsconfig.json</text>
+
+    <text x="16" y="342" fill="#86efac">$ cat petstore-mcp/snippets/claude_desktop_config.json</text>
+    <text x="16" y="362">{ "mcpServers": { "petstore": { "command": "node", "args": [".../dist/index.js"] } } }</text>
+  </g>
+</svg>
