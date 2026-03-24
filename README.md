@@ -29,6 +29,15 @@ npm start
 
 For a complete walkthrough (including Claude Desktop setup), see [Quickstart](docs/quickstart.md).
 
+Python CLI that converts OpenAPI/Swagger specifications into production-ready MCP server templates in TypeScript.
+
+## Quick install
+
+```bash
+pip install mcp-toolsmith
+```
+
+![Terminal demo showing `mcp-toolsmith generate` against the Petstore API and resulting snippet output.](docs/demo.svg)
 ## Features
 
 | Capability | Status | Notes |
