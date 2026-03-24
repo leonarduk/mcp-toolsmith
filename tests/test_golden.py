@@ -158,7 +158,8 @@ def test_petstore_golden_outputs(tmp_path: Path, update_golden: bool) -> None:
                     lineterm="",
                 )
             )
-            diffs.append(diff)
+            if diff:
+                diffs.append(diff)
 
         assert not diffs, (
             f"Golden output drift for case '{case.name}'. "
