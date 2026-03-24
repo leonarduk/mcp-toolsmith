@@ -1,0 +1,19 @@
+openapi: 3.0.3
+info:
+  title: Enum Params API
+  version: 1.0.0
+paths:
+  /items:
+    get:
+      operationId: list_items
+      tags: [items]
+      parameters:
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [draft, published, archived]
+      responses:
+        '200':
+          description: ok

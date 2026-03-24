@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getApiBaseUrl, getApiToken } from "../config.js";
+import { getApiBaseUrl{% if group.operations | selectattr('auth_type', 'equalto', 'http_bearer') | list %}, getBearerToken{% endif %} } from "../config.js";
 
 export function register{{ group.module_name|capitalize }}Tools(server: McpServer): void {
 {% for op in group.operations %}  server.tool(
@@ -12,8 +12,16 @@ export function register{{ group.module_name|capitalize }}Tools(server: McpServe
 {% endif %}    },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
-      const apiToken = getApiToken();
+{% if op.auth_type == "http_bearer" %}
+      const apiToken = getBearerToken();
+{% endif %}
       const url = new URL(`${apiBaseUrl}{{ op.path_template }}`);
+{% if op.auth_type == "api_key_query" and op.auth_name %}
+      const apiKey = process.env.API_KEY;
+      if (apiKey) {
+        url.searchParams.set("{{ op.auth_name }}", apiKey);
+      }
+{% endif %}
 {% for param in op.params %}{% if param.location == 'query' %}      if (args.{{ param.name }} !== undefined) {
         url.searchParams.set("{{ param.source_name }}", String(args.{{ param.name }}));
       }
@@ -21,7 +29,11 @@ export function register{{ group.module_name|capitalize }}Tools(server: McpServe
         method: "{{ op.http_method }}",
         headers: {
           "Accept": "application/json",
+{% if op.auth_type == "http_bearer" %}
           ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+{% elif op.auth_type == "api_key_header" and op.auth_name %}
+          ...(process.env.API_KEY ? { "{{ op.auth_name }}": process.env.API_KEY } : {}),
+{% endif %}
 {% if op.has_request_body %}          "Content-Type": "application/json",
 {% endif %}        },
 {% if op.has_request_body %}        body: JSON.stringify(args.body ?? {}),

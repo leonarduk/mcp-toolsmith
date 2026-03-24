@@ -183,6 +183,8 @@ def _operation_context(op: OperationModel) -> OperationDict:
         "request_body_ts_schema": _typescript_schema_expression(op.request_body),
         "request_body_zod_schema": _zod_schema(op.request_body),
         "has_request_body": op.request_body is not None,
+        "auth_type": op.auth_type,
+        "auth_name": op.auth_name,
     }
 
 

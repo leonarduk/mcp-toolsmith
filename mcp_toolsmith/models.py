@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 HttpMethod = Literal["get", "post", "put", "patch", "delete", "options", "head"]
 ParameterLocation = Literal["path", "query", "header", "cookie"]
+AuthType = Literal["none", "http_bearer", "api_key_header", "api_key_query"]
 
 
 class SpecMeta(BaseModel):
@@ -70,6 +71,8 @@ class OperationModel(BaseModel):
     cookie_params: list[ParameterModel] = Field(default_factory=list)
     request_body: SchemaModel | None = None
     responses: dict[str, SchemaModel | None] = Field(default_factory=dict)
+    auth_type: AuthType = "none"
+    auth_name: str | None = None
 
 
 def rebuild_models() -> None:

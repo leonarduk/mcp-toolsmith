@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 from mcp_toolsmith.deref import dereference_local_refs
-from mcp_toolsmith.models import HttpMethod, OperationModel, ParameterModel, SchemaModel
+from mcp_toolsmith.models import AuthType, HttpMethod, OperationModel, ParameterModel, SchemaModel
 from mcp_toolsmith.validator import SpecValidationError
 from mcp_toolsmith.validator import validate_spec
 
@@ -30,6 +30,9 @@ def extract_operations(document: Mapping[str, Any]) -> list[OperationModel]:
     """
     validate_spec(document)
     dereferenced = dereference_local_refs(document)
+    components = dereferenced.get("components")
+    security_schemes = _extract_security_schemes(components)
+    global_security = dereferenced.get("security")
     paths = cast(Mapping[str, Any], dereferenced["paths"])
     operations: list[OperationModel] = []
     generated_operation_ids: set[str] = set()
@@ -61,23 +64,94 @@ def extract_operations(document: Mapping[str, Any]) -> list[OperationModel]:
                 )
             generated_operation_ids.add(operation_id)
             operations.append(
-                OperationModel(
+                _build_operation_model(
                     source_path=source_path,
-                    http_method=method,
+                    method=method,
+                    operation=operation,
+                    grouped=grouped,
                     operation_id=operation_id,
-                    summary=_clean_str(operation.get("summary")),
-                    description=_clean_str(operation.get("description")),
-                    tags=_normalize_tags(operation.get("tags")),
-                    deprecated=bool(operation.get("deprecated", False)),
-                    path_params=grouped["path"],
-                    query_params=grouped["query"],
-                    header_params=grouped["header"],
-                    cookie_params=grouped["cookie"],
-                    request_body=_extract_request_body(operation.get("requestBody")),
-                    responses=_extract_responses(operation.get("responses", {})),
+                    security_schemes=security_schemes,
+                    global_security=global_security,
                 )
             )
     return operations
+
+
+def _build_operation_model(
+    source_path: str,
+    method: HttpMethod,
+    operation: Mapping[str, Any],
+    grouped: dict[str, list[ParameterModel]],
+    operation_id: str,
+    security_schemes: Mapping[str, Mapping[str, Any]],
+    global_security: Any,
+) -> OperationModel:
+    auth_type, auth_name = _resolve_operation_auth(
+        operation_security=operation.get("security"),
+        global_security=global_security,
+        security_schemes=security_schemes,
+    )
+    return OperationModel(
+        source_path=source_path,
+        http_method=method,
+        operation_id=operation_id,
+        summary=_clean_str(operation.get("summary")),
+        description=_clean_str(operation.get("description")),
+        tags=_normalize_tags(operation.get("tags")),
+        deprecated=bool(operation.get("deprecated", False)),
+        path_params=grouped["path"],
+        query_params=grouped["query"],
+        header_params=grouped["header"],
+        cookie_params=grouped["cookie"],
+        request_body=_extract_request_body(operation.get("requestBody")),
+        responses=_extract_responses(operation.get("responses", {})),
+        auth_type=auth_type,
+        auth_name=auth_name,
+    )
+
+
+def _extract_security_schemes(raw_components: Any) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(raw_components, Mapping):
+        return {}
+    raw_security_schemes = raw_components.get("securitySchemes")
+    if not isinstance(raw_security_schemes, Mapping):
+        return {}
+    return {
+        str(name): value
+        for name, value in raw_security_schemes.items()
+        if isinstance(value, Mapping)
+    }
+
+
+def _resolve_operation_auth(
+    operation_security: Any,
+    global_security: Any,
+    security_schemes: Mapping[str, Mapping[str, Any]],
+) -> tuple[AuthType, str | None]:
+    # Operation-level security overrides global security.
+    candidates = operation_security if operation_security is not None else global_security
+    if not isinstance(candidates, list):
+        return ("none", None)
+    for requirement in candidates:
+        if requirement == {}:
+            return ("none", None)
+        if not isinstance(requirement, Mapping):
+            continue
+        for scheme_name in requirement.keys():
+            scheme = security_schemes.get(str(scheme_name))
+            if not isinstance(scheme, Mapping):
+                continue
+            scheme_type = _clean_str(scheme.get("type"))
+            if scheme_type == "http" and _clean_str(scheme.get("scheme")) == "bearer":
+                return ("http_bearer", None)
+            if scheme_type == "apiKey":
+                location = _clean_str(scheme.get("in"))
+                param_name = _clean_str(scheme.get("name"))
+                if location == "header" and param_name:
+                    return ("api_key_header", param_name)
+                if location == "query" and param_name:
+                    return ("api_key_query", param_name)
+    return ("none", None)
 
 
 def _normalize_parameters(raw_parameters: Any) -> list[ParameterModel]:
@@ -129,6 +203,11 @@ def _schema_from_raw(raw_schema: Any) -> SchemaModel | None:
 
     if not isinstance(raw_schema, Mapping):
         return None
+    raw_all_of = raw_schema.get("allOf")
+    if isinstance(raw_all_of, list):
+        merged = _merge_all_of_schemas(raw_schema, raw_all_of)
+        if merged is not None:
+            return merged
     properties: dict[str, SchemaModel] = {}
     raw_properties = raw_schema.get("properties")
     if isinstance(raw_properties, Mapping):
@@ -150,6 +229,33 @@ def _schema_from_raw(raw_schema: Any) -> SchemaModel | None:
         properties=properties,
         items=items,
         required=[str(item) for item in required],
+        raw_schema=dict(raw_schema),
+    )
+
+
+def _merge_all_of_schemas(raw_schema: Mapping[str, Any], all_of: list[Any]) -> SchemaModel | None:
+    merged_properties: dict[str, SchemaModel] = {}
+    merged_required: list[str] = []
+    has_merged_schema = False
+
+    for item in all_of:
+        nested = _schema_from_raw(item)
+        if nested is None:
+            continue
+        has_merged_schema = True
+        merged_properties.update(nested.properties)
+        for required_name in nested.required:
+            if required_name not in merged_required:
+                merged_required.append(required_name)
+
+    if not has_merged_schema:
+        return None
+
+    return SchemaModel(
+        type="object",
+        description=_clean_str(raw_schema.get("description")),
+        properties=merged_properties,
+        required=merged_required,
         raw_schema=dict(raw_schema),
     )
 
