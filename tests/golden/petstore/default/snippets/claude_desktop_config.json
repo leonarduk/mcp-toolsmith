@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "__SERVER_NAME__": {
+    "petstore": {
       "command": "node",
       "args": ["__OUT_DIR__/dist/index.js"]
     }

@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for CLI smoke tests."""
+"""Shared pytest fixtures and options for CLI smoke and golden tests."""
 
 from __future__ import annotations
 
@@ -7,6 +7,22 @@ import sys
 from collections.abc import Callable
 
 import pytest
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add command-line flags used by the test suite."""
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        default=False,
+        help="Regenerate tests/golden snapshots from current generator output.",
+    )
+
+
+@pytest.fixture
+def update_golden(request: pytest.FixtureRequest) -> bool:
+    """Return whether golden snapshots should be refreshed."""
+    return bool(request.config.getoption("--update-golden"))
 
 
 @pytest.fixture
