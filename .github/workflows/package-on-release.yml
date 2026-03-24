@@ -34,6 +34,29 @@ jobs:
       - name: Verify package metadata
         run: python -m twine check dist/*
 
+      - name: Verify tag matches project version
+        run: |
+          python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          import os
+          import sys
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          tag_version = tag[1:] if tag.startswith("v") else tag
+          project_version = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+
+          if tag_version != project_version:
+              print(
+                  f"Tag/version mismatch: tag '{tag}' resolves to '{tag_version}' "
+                  f"but pyproject.toml declares '{project_version}'.",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+
+          print(f"Tag '{tag}' matches package version '{project_version}'.")
+          PY
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -65,12 +88,18 @@ jobs:
           skip-existing: true
 
       - name: Verify installer command against TestPyPI
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
         run: |
           python -m venv .venv-testpypi
           . .venv-testpypi/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ mcp-toolsmith
-          mcp-toolsmith --version
+          expected_version="${EXPECTED_VERSION#v}"
+          python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ "mcp-toolsmith==${expected_version}"
+          installed_version="$(python -c "import importlib.metadata; print(importlib.metadata.version('mcp-toolsmith'))")"
+          test "${installed_version}" = "${expected_version}"
+          test "$(mcp-toolsmith --version)" = "mcp-toolsmith ${expected_version}"
+          mcp-toolsmith --help >/dev/null
 
   publish-pypi:
     name: Publish to PyPI
