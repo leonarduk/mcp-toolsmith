@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "__SERVER_NAME__": {
+      "command": "node",
+      "args": ["__OUT_DIR__/dist/index.js"]
+    }
+  }
+}
