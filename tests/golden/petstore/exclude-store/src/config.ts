@@ -6,6 +6,6 @@ export function getApiBaseUrl(): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
 
-export function getApiToken(): string | undefined {
-  return process.env.API_TOKEN;
+export function getBearerToken(): string | undefined {
+  return process.env.BEARER_TOKEN ?? process.env.API_TOKEN;
 }
