@@ -1,0 +1,51 @@
+{
+  "cli_flags": {
+    "dry_run": false,
+    "exclude": [
+      "store"
+    ],
+    "include": [],
+    "no_report": false,
+    "out": "__OUT_DIR__",
+    "source": "tests/fixtures/petstore_v3.yaml",
+    "unsafe": false
+  },
+  "generated_files": [
+    "package.json",
+    "snippets/claude_desktop_config.json",
+    "snippets/langchain_snippet.py",
+    "snippets/vscode_mcp_config.json",
+    "src/config.ts",
+    "src/index.ts",
+    "src/tools/pets.ts",
+    "tsconfig.json"
+  ],
+  "generated_operations": 3,
+  "score": {
+    "dimensions": {
+      "naming": 25,
+      "safety": 21,
+      "schema_coverage": 25,
+      "usability": 25
+    },
+    "findings": [
+      {
+        "dimension": "safety",
+        "level": "error",
+        "message": "DELETE requires the --unsafe flag.",
+        "operation_id": "delete_pet"
+      }
+    ],
+    "total": 96
+  },
+  "skipped_operations": [
+    {
+      "operation_id": "delete_pet",
+      "reason": "unsafe HTTP method requires --unsafe"
+    }
+  ],
+  "spec_title": "Petstore",
+  "spec_version": "1.0.0",
+  "timestamp": "__TIMESTAMP__",
+  "total_operations": 4
+}
