@@ -20,12 +20,15 @@ pr_title = os.environ.get("PR_TITLE", "")
 diff = os.environ.get("DIFF", "")
 issue_body = os.environ.get("ISSUE_BODY", "No linked issue found. Review code on its own merits.")
 
-prompt = f"""You are a senior engineer reviewing a pull request for **sing-attune**, \
-a real-time choir practice app.
+prompt = f"""You are a senior engineer reviewing a pull request for **mcp-toolsmith**, \
+a Python CLI that converts OpenAPI/Swagger specifications into production-ready \
+MCP (Model Context Protocol) server templates in TypeScript.
 
-The stack is Python/FastAPI backend + Vite+TypeScript frontend + Electron (future).
-Key constraints: audio latency <80ms end-to-end, thread-safe pitch pipeline, \
-asyncio event loop correctness.
+The stack is: Python CLI (Click/Typer), Pydantic models for report schema, \
+pytest for testing, ruff for linting, TypeScript output templates.
+Key constraints: correct OpenAPI spec parsing, accurate operation filtering \
+(--include/--exclude by tag), well-formed TypeScript output, \
+reliable report.json schema adherence.
 
 ## Linked issue / acceptance criteria
 {issue_body}
@@ -54,15 +57,13 @@ Any incorrect behaviour, edge cases that aren't handled, or off-by-one errors? \
 For documentation PRs: are there factual errors, contradictions, or dangerously \
 misleading statements?
 
-### 3. Thread safety and async correctness
-(Backend code only — skip for docs/frontend-only PRs)
-- Are shared mutable objects properly locked?
-- Is call_soon_threadsafe used correctly?
-- Any asyncio anti-patterns (blocking calls in coroutines, wrong loop assumptions)?
-
-### 4. Test coverage
+### 3. Test coverage
 Are the acceptance criteria actually exercised by tests? Any obvious missing cases? \
 Not applicable for documentation-only PRs.
+
+### 4. Output correctness
+(For generation PRs) Does the generated TypeScript output conform to the MCP server \
+template contract? Are report.json fields accurate and complete?
 
 ### 5. Minor issues (optional)
 Style, naming, docstrings — only flag if they would cause future confusion.
