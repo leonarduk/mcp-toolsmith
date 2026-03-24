@@ -1,0 +1,27 @@
+openapi: 3.0.3
+info:
+  title: allOf Schema API
+  version: 1.0.0
+paths:
+  /users:
+    post:
+      operationId: create_user
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [name]
+                  properties:
+                    name:
+                      type: string
+                - type: object
+                  properties:
+                    role:
+                      type: string
+      responses:
+        '201':
+          description: created

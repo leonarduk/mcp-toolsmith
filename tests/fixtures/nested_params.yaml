@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info:
+  title: Nested Params API
+  version: 1.0.0
+paths:
+  /search:
+    get:
+      operationId: search_nested
+      tags: [search]
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: object
+            properties:
+              level1:
+                type: object
+                properties:
+                  level2:
+                    type: object
+                    properties:
+                      level3:
+                        type: string
+      responses:
+        '200':
+          description: ok
