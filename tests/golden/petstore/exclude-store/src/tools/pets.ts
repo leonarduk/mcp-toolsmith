@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getApiBaseUrl, getApiToken } from "../config.js";
+import { getApiBaseUrl } from "../config.js";
 
 export function registerPetsTools(server: McpServer): void {
   server.tool(
@@ -11,13 +11,11 @@ export function registerPetsTools(server: McpServer): void {
     },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
-      const apiToken = getApiToken();
       const url = new URL(`${apiBaseUrl}/pets`);
       const response = await fetch(url, {
         method: "POST",
         headers: {
           "Accept": "application/json",
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
           "Content-Type": "application/json",
         },
         body: JSON.stringify(args.body ?? {}),
@@ -41,13 +39,11 @@ export function registerPetsTools(server: McpServer): void {
     },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
-      const apiToken = getApiToken();
       const url = new URL(`${apiBaseUrl}/pets/${encodeURIComponent(String(args.petid))}`);
       const response = await fetch(url, {
         method: "GET",
         headers: {
           "Accept": "application/json",
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
         },
       });
       const text = await response.text();
@@ -69,7 +65,6 @@ export function registerPetsTools(server: McpServer): void {
     },
     async (args: Record<string, unknown>) => {
       const apiBaseUrl = getApiBaseUrl();
-      const apiToken = getApiToken();
       const url = new URL(`${apiBaseUrl}/pets`);
       if (args.limit !== undefined) {
         url.searchParams.set("limit", String(args.limit));
@@ -78,7 +73,6 @@ export function registerPetsTools(server: McpServer): void {
         method: "GET",
         headers: {
           "Accept": "application/json",
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
         },
       });
       const text = await response.text();
