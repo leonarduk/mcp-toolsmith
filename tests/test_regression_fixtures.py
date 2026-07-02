@@ -18,6 +18,7 @@ FIXTURE_NAMES = [
     "allof_schema.yaml",
     "nested_params.yaml",
     "no_tags.yaml",
+    "xquik_social_api.yaml",
 ]
 
 
@@ -68,6 +69,28 @@ def test_api_key_auth_fixture_uses_api_key_header_and_not_bearer(tmp_path: Path)
     assert '"X-API-Key": process.env.API_KEY' in tools_text
     assert "Authorization: `Bearer ${apiToken}`" not in tools_text
     assert "getBearerToken" not in tools_text
+
+
+def test_xquik_social_fixture_groups_tools_and_uses_x_api_key_header(
+    tmp_path: Path,
+) -> None:
+    spec = _load_fixture("xquik_social_api.yaml")
+    operations = extract_operations(spec)
+    scoring = score_operations(operations)
+
+    out_dir = tmp_path / "xquik"
+    generate(operations, scoring, out_dir, spec_title=spec["info"]["title"])
+
+    search_tools = (out_dir / "src" / "tools" / "x.ts").read_text(encoding="utf-8")
+    compose_tools = (out_dir / "src" / "tools" / "compose.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"x-api-key": process.env.API_KEY' in search_tools
+    assert '"x-api-key": process.env.API_KEY' in compose_tools
+    assert "search_tweets" in search_tools
+    assert "compose_tweet" in compose_tools
+    assert "prompt: z.string()" in compose_tools
 
 
 def test_enum_params_fixture_generates_union_schema_for_enum_parameter(tmp_path: Path) -> None:

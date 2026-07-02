@@ -1,0 +1,75 @@
+openapi: 3.1.0
+info:
+  title: Xquik Social API
+  version: "1.0"
+servers:
+  - url: https://xquik.com
+components:
+  securitySchemes:
+    XquikApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    ComposeRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        style:
+          type: string
+    ComposeResponse:
+      type: object
+      properties:
+        text:
+          type: string
+security:
+  - XquikApiKey: []
+paths:
+  /api/v1/x/tweets/search:
+    get:
+      operationId: search_tweets
+      tags: [x]
+      summary: Search public tweets
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+  /api/v1/compose:
+    post:
+      operationId: compose_tweet
+      tags: [compose]
+      summary: Compose tweet text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComposeRequest"
+      responses:
+        "200":
+          description: Composed text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComposeResponse"
